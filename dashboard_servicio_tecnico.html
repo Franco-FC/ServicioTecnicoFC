@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard · Servicio Técnico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --navy: #0f2540;
+    --navy-mid: #1a3a5c;
+    --navy-light: #2e6da4;
+    --accent: #e8a04a;
+    --accent-light: #f5d49a;
+    --surface: #f7f8fa;
+    --surface2: #eef1f6;
+    --border: #d8dfe8;
+    --text: #0f2540;
+    --text-muted: #6b7a8d;
+    --white: #ffffff;
+    --green: #1a7a56;
+    --green-light: #d4efe5;
+    --red: #c0392b;
+    --red-light: #fde8e6;
+    --purple: #5340b8;
+    --purple-light: #ede9fc;
+    --teal: #1565a8;
+    --teal-light: #dceeff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--surface);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    background: var(--navy);
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-brand {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .topbar-logo {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .topbar-logo svg { width: 16px; height: 16px; fill: var(--navy); }
+  .topbar-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    color: white; letter-spacing: 0.02em;
+  }
+  .topbar-period {
+    font-size: 12px; color: rgba(255,255,255,0.5);
+    font-family: 'DM Sans', sans-serif; font-weight: 300;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── UPLOAD SCREEN ── */
+  #uploadScreen {
+    min-height: calc(100vh - 56px);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 2rem;
+  }
+  .upload-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    max-width: 520px; width: 100%;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(15,37,64,0.07);
+  }
+  .upload-icon-wrap {
+    width: 72px; height: 72px;
+    background: var(--teal-light);
+    border-radius: 18px;
+    margin: 0 auto 1.5rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .upload-icon-wrap svg { width: 36px; height: 36px; fill: var(--teal); }
+  .upload-card h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px; font-weight: 800;
+    margin-bottom: 8px; color: var(--navy);
+  }
+  .upload-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.5rem; }
+
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 2rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 1.25rem;
+    background: var(--surface);
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--navy-light); background: var(--teal-light); }
+  .dropzone p { font-size: 13px; color: var(--text-muted); margin: 0; }
+  .dropzone strong { display: block; font-size: 14px; color: var(--navy); margin-bottom: 4px; }
+  .dropzone input { display: none; }
+
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+  .field label { font-size: 11px; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .field input {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-family: 'DM Sans', sans-serif;
+    color: var(--text); background: var(--white);
+    transition: border-color 0.15s;
+  }
+  .field input:focus { outline: none; border-color: var(--navy-light); }
+
+  .btn-primary {
+    width: 100%; padding: 12px;
+    background: var(--navy); color: white;
+    border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: background 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary:hover { background: var(--navy-mid); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .status { font-size: 12px; margin-top: 10px; min-height: 16px; text-align: center; }
+  .status.ok { color: var(--green); }
+  .status.err { color: var(--red); }
+
+  /* ── DASHBOARD ── */
+  #dashboard { display: none; padding: 1.75rem 2rem 3rem; max-width: 1100px; margin: 0 auto; }
+
+  .dash-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem;
+  }
+  .dash-header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px; font-weight: 800; color: var(--navy);
+    line-height: 1.2;
+  }
+  .dash-header .period-badge {
+    font-size: 12px; font-weight: 500;
+    background: var(--teal-light); color: var(--teal);
+    padding: 4px 12px; border-radius: 20px; margin-top: 4px; display: inline-block;
+  }
+
+  .dash-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+  .btn-secondary {
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    background: var(--white); border-radius: 8px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    color: var(--text); cursor: pointer;
+    transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-secondary:hover { border-color: var(--navy-light); color: var(--navy); }
+  .btn-dl {
+    padding: 9px 16px;
+    background: var(--navy); color: white;
+    border: none; border-radius: 8px;
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: background 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-dl:hover { background: var(--navy-mid); }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.75rem; }
+  .kpi-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.1rem 1.2rem;
+    position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+  }
+  .kpi-card.navy::before { background: var(--navy); }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.purple::before { background: var(--purple); }
+  .kpi-card.teal::before { background: var(--teal); }
+  .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; margin-bottom: 8px; }
+  .kpi-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; line-height: 1; }
+  .kpi-card.navy .kpi-value { color: var(--navy); }
+  .kpi-card.green .kpi-value { color: var(--green); }
+  .kpi-card.purple .kpi-value { color: var(--purple); }
+  .kpi-card.teal .kpi-value { color: var(--teal); }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+
+  /* SECTION */
+  .section-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--text-muted);
+    margin-bottom: 0.85rem; margin-top: 0.25rem;
+  }
+
+  /* CHARTS ROW */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.75rem; }
+  .chart-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+  }
+  .chart-card h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    color: var(--navy); margin-bottom: 1rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap-tall { position: relative; height: 280px; }
+
+  /* FULL WIDTH CHART */
+  .chart-full {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+    margin-bottom: 1.75rem;
+  }
+  .chart-full h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    color: var(--navy); margin-bottom: 1rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  /* TABLES */
+  .tables-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.75rem; }
+  .table-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem;
+    overflow: hidden;
+  }
+  .table-card h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    color: var(--navy); margin-bottom: 1rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  table.dt { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.dt thead tr { background: var(--navy); }
+  table.dt th {
+    color: white; padding: 7px 10px;
+    font-weight: 500; font-size: 11px;
+    text-align: left; white-space: nowrap;
+  }
+  table.dt th:not(:first-child) { text-align: center; }
+  table.dt td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--surface2);
+    vertical-align: middle;
+  }
+  table.dt td:not(:first-child) { text-align: center; }
+  table.dt tr:nth-child(even) td { background: var(--surface); }
+  table.dt .badge {
+    display: inline-block;
+    background: var(--teal-light); color: var(--teal);
+    font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px;
+  }
+  table.dt .of-tec { color: var(--text-muted); font-style: italic; }
+
+  /* TIEMPOS */
+  .tiempos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.75rem; }
+  .semaforo-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--surface2);
+    font-size: 13px;
+  }
+  .semaforo-row:last-child { border-bottom: none; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot.green { background: #1a7a56; }
+  .dot.lime { background: #5aab5a; }
+  .dot.amber { background: #e8a04a; }
+  .dot.orange { background: #d4662a; }
+  .dot.red { background: #c0392b; }
+  .semaforo-label { flex: 1; }
+  .semaforo-count { font-weight: 600; min-width: 30px; text-align: right; }
+  .semaforo-pct { color: var(--text-muted); min-width: 44px; text-align: right; }
+  .semaforo-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; min-width: 72px; text-align: center;
+  }
+  .badge-excelente { background: #d4efe5; color: #1a7a56; }
+  .badge-bueno { background: #dff0d8; color: #3a7d44; }
+  .badge-aceptable { background: #fef3e2; color: #b07a12; }
+  .badge-revisar { background: #fde8d8; color: #c05a1a; }
+  .badge-critico { background: var(--red-light); color: var(--red); }
+
+  /* RESPONSIVE */
+  @media (max-width: 720px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row, .tables-row, .tiempos-grid { grid-template-columns: 1fr; }
+    #dashboard { padding: 1rem 1rem 2rem; }
+    .topbar { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<nav class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 24 24"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1H4.5V5h15v14.1zm0-16.1H4.5C3.4 3 2.5 3.9 2.5 5v14c0 1.1.9 2 2 2H18.5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+    </div>
+    <span class="topbar-title">SERVICIO TÉCNICO</span>
+  </div>
+  <span class="topbar-period" id="topPeriod">—</span>
+</nav>
+
+<!-- UPLOAD SCREEN -->
+<div id="uploadScreen">
+  <div class="upload-card">
+    <div class="upload-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+    </div>
+    <h2>Reporte Semanal</h2>
+    <p>Subí el Excel de servicio técnico para generar el dashboard completo con KPIs, gráficos y tablas.</p>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls" />
+      <strong>Arrastrá el archivo aquí o hacé clic</strong>
+      <p>Formato: reporte semanal FC · .xlsx</p>
+    </div>
+
+    <div id="fileBadge" style="display:none; font-size:12px; color:var(--teal); margin-bottom:1rem; font-weight:500;">
+      ✓ <span id="fileName"></span>
+    </div>
+
+    <div class="config-grid">
+      <div class="field">
+        <label>OTs generadas</label>
+        <input type="number" id="otGeneradas" placeholder="ej: 212" />
+      </div>
+      <div class="field">
+        <label>Período</label>
+        <input type="text" id="semanaLabel" placeholder="ej: Semana 2 · 09/03 al 15/03" />
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btnGenerate" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      Generar dashboard
+    </button>
+    <div class="status" id="statusMsg"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="dash-header">
+    <div>
+      <h1 id="dashTitle">Reporte de Servicio Técnico</h1>
+      <span class="period-badge" id="dashPeriod"></span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" id="btnReset">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        Nuevo reporte
+      </button>
+      <button class="btn-dl" id="btnDownload">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Descargar Excel
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="section-label">Indicadores clave</div>
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- CHARTS ROW 1: Técnicos + Servicios -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>OTs por técnico</h3>
+      <div class="chart-wrap-tall"><canvas id="chartTecnicos"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Top 10 servicios</h3>
+      <div class="chart-wrap-tall"><canvas id="chartServicios"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHARTS ROW 2: Días + Tiempos resolución -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>OTs por día de semana</h3>
+      <div class="chart-wrap"><canvas id="chartDias"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Distribución por tiempo de resolución</h3>
+      <div class="chart-wrap"><canvas id="chartTiempos"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TABLES ROW -->
+  <div class="section-label">Detalle por técnico y servicio</div>
+  <div class="tables-row">
+    <div class="table-card">
+      <h3>Órdenes por técnico</h3>
+      <table class="dt" id="tablaTecnicos"></table>
+    </div>
+    <div class="table-card">
+      <h3>Top 10 tipos de servicio</h3>
+      <table class="dt" id="tablaServicios"></table>
+    </div>
+  </div>
+
+  <!-- TIEMPOS + DÍAS TABLA -->
+  <div class="section-label">Tiempos y distribución semanal</div>
+  <div class="tiempos-grid">
+    <div class="table-card">
+      <h3>Tiempos de resolución</h3>
+      <div id="semaforoList"></div>
+    </div>
+    <div class="table-card">
+      <h3>OTs por día de semana</h3>
+      <table class="dt" id="tablaDias"></table>
+    </div>
+  </div>
+
+  <!-- EDIFICIOS -->
+  <div class="section-label">Edificios con más órdenes</div>
+  <div class="chart-full">
+    <h3>Top 15 edificios atendidos</h3>
+    <div style="position:relative;height:300px;"><canvas id="chartEdificios"></canvas></div>
+  </div>
+
+</div>
+
+<script>
+// ── CHART REGISTRY ──
+const charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+// ── UPLOAD LOGIC ──
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const btnGenerate = document.getElementById('btnGenerate');
+const statusMsg = document.getElementById('statusMsg');
+let parsedData = null;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileBadge').style.display = 'block';
+  statusMsg.className = 'status'; statusMsg.textContent = 'Leyendo archivo...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+      let headerRow = -1;
+      for (let i = 0; i < raw.length; i++) {
+        if (raw[i] && raw[i].some(v => v && String(v).toLowerCase().includes('número'))) {
+          headerRow = i; break;
+        }
+      }
+      if (headerRow === -1) { statusMsg.className='status err'; statusMsg.textContent='No se encontró encabezado. Verificá el formato.'; return; }
+      const headers = raw[headerRow];
+      const rows = raw.slice(headerRow + 1).filter(r => r && r[0] != null && String(r[0]).trim() !== '');
+      parsedData = rows.map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { if (h) obj[String(h).trim()] = r[i]; });
+        return obj;
+      });
+      statusMsg.className = 'status ok';
+      statusMsg.textContent = `✓ ${parsedData.length} órdenes cargadas`;
+      btnGenerate.disabled = false;
+    } catch(err) {
+      statusMsg.className = 'status err';
+      statusMsg.textContent = 'Error: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+btnGenerate.addEventListener('click', () => {
+  if (!parsedData) return;
+  const otGen = parseInt(document.getElementById('otGeneradas').value) || parsedData.length;
+  const label = document.getElementById('semanaLabel').value || 'Semana actual';
+  buildDashboard(parsedData, otGen, label);
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('uploadScreen').style.display = 'flex';
+  document.getElementById('topPeriod').textContent = '—';
+  parsedData = null;
+  btnGenerate.disabled = true;
+  statusMsg.textContent = '';
+  document.getElementById('fileBadge').style.display = 'none';
+  fileInput.value = '';
+});
+
+// ── DATE PARSE ──
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  const d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+function diffHours(a, b) {
+  const da = parseDate(a), db = parseDate(b);
+  if (!da || !db) return null;
+  return (db - da) / 3600000;
+}
+
+const DAYS_ES = { 0:'Domingo', 1:'Lunes', 2:'Martes', 3:'Miércoles', 4:'Jueves', 5:'Viernes', 6:'Sábado' };
+const DAYS_ORDER = [1,2,3,4,5,6,0];
+const CHART_COLORS = ['#0f2540','#1a3a5c','#2e6da4','#e8a04a','#5340b8','#1a7a56','#c0392b','#1565a8','#7b5ea7','#3d7a8a'];
+
+function buildDashboard(df, otGen, label) {
+  const total = df.length;
+  const conTec = df.filter(r => r['Tecnico'] && String(r['Tecnico']).trim() !== '');
+  const sinTec = total - conTec.length;
+  const edificios = new Set(conTec.map(r => r['Cuenta'])).size;
+  const pct = ((total / otGen) * 100).toFixed(1) + '%';
+
+  document.getElementById('uploadScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('dashTitle').textContent = 'Reporte de Servicio Técnico';
+  document.getElementById('dashPeriod').textContent = label;
+  document.getElementById('topPeriod').textContent = label;
+
+  // ── KPIs ──
+  const kpiGrid = document.getElementById('kpiGrid');
+  kpiGrid.innerHTML = [
+    { cls:'navy', label:'Total OTs finalizadas', value: total, sub: 'órdenes registradas' },
+    { cls:'green', label:'% finalizadas vs generadas', value: pct, sub: `${total} de ${otGen} generadas` },
+    { cls:'purple', label:'Cerradas en of. técnica', value: sinTec, sub: 'sin técnico asignado' },
+    { cls:'teal', label:'Edificios atendidos', value: edificios, sub: 'con visita técnica' },
+  ].map(k => `<div class="kpi-card ${k.cls}">
+    <div class="kpi-label">${k.label}</div>
+    <div class="kpi-value">${k.value}</div>
+    <div class="kpi-sub">${k.sub}</div>
+  </div>`).join('');
+
+  // ── TÉCNICOS ──
+  const tecMap = {};
+  conTec.forEach(r => { const t = String(r['Tecnico']).trim(); tecMap[t] = (tecMap[t]||0)+1; });
+  const tecEntries = Object.entries(tecMap).sort((a,b)=>b[1]-a[1]);
+  tecEntries.push(['Oficina Técnica', sinTec]);
+
+  // Chart técnicos (horizontal bar)
+  destroyChart('tecnicos');
+  const allTec = [...tecEntries];
+  charts['tecnicos'] = new Chart(document.getElementById('chartTecnicos'), {
+    type: 'bar',
+    data: {
+      labels: allTec.map(([t]) => t),
+      datasets: [{
+        data: allTec.map(([,n]) => n),
+        backgroundColor: allTec.map((_, i) => i === allTec.length-1 ? '#b0b8c4' : CHART_COLORS[i % CHART_COLORS.length]),
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+
+  // Table técnicos
+  let tHTML = '<thead><tr><th>Técnico</th><th>OTs</th><th>%</th></tr></thead><tbody>';
+  tecEntries.forEach(([t,n], i) => {
+    const isOf = t === 'Oficina Técnica';
+    tHTML += `<tr><td ${isOf?'class="of-tec"':''}>${t}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;
+  });
+  document.getElementById('tablaTecnicos').innerHTML = tHTML + '</tbody>';
+
+  // ── SERVICIOS ──
+  const srvMap = {};
+  df.forEach(r => { const s = r['Servicio']; if (s) { const k = String(s).trim(); srvMap[k]=(srvMap[k]||0)+1; } });
+  const srvEntries = Object.entries(srvMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  destroyChart('servicios');
+  charts['servicios'] = new Chart(document.getElementById('chartServicios'), {
+    type: 'bar',
+    data: {
+      labels: srvEntries.map(([s]) => s.length > 28 ? s.slice(0,26)+'…' : s),
+      datasets: [{
+        data: srvEntries.map(([,n]) => n),
+        backgroundColor: '#2e6da4',
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+
+  let sHTML = '<thead><tr><th>Servicio</th><th>Cant.</th><th>%</th></tr></thead><tbody>';
+  srvEntries.forEach(([s,n]) => {
+    sHTML += `<tr><td>${s}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;
+  });
+  document.getElementById('tablaServicios').innerHTML = sHTML + '</tbody>';
+
+  // ── DÍAS ──
+  const dayMap = {};
+  df.forEach(r => {
+    const d = parseDate(r['Fecha de Creación']);
+    if (d) { const dow = d.getDay(); dayMap[dow]=(dayMap[dow]||0)+1; }
+  });
+
+  destroyChart('dias');
+  const dayLabels = DAYS_ORDER.map(d => DAYS_ES[d]);
+  const dayVals = DAYS_ORDER.map(d => dayMap[d]||0);
+  charts['dias'] = new Chart(document.getElementById('chartDias'), {
+    type: 'bar',
+    data: {
+      labels: dayLabels,
+      datasets: [{
+        data: dayVals,
+        backgroundColor: DAYS_ORDER.map(d => d===0||d===6 ? '#e8a04a' : '#0f2540'),
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.raw} OTs (${((ctx.raw/total)*100).toFixed(1)}%)` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+
+  let dHTML = '<thead><tr><th>Día</th><th>OTs</th><th>%</th></tr></thead><tbody>';
+  DAYS_ORDER.forEach(d => {
+    const n = dayMap[d]||0;
+    dHTML += `<tr><td>${DAYS_ES[d]}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;
+  });
+  document.getElementById('tablaDias').innerHTML = dHTML + '</tbody>';
+
+  // ── TIEMPOS RESOLUCIÓN ──
+  const resHours = df.map(r => diffHours(r['Fecha de Creación'], r['Fecha de finalizacion'])).filter(h => h !== null && h >= 0);
+  const bins = [
+    { label: '0–4 hs (mismo día)', max: 4, dot: 'green', badge: 'badge-excelente', txt: 'Excelente' },
+    { label: '4–24 hs (1 día)', max: 24, dot: 'lime', badge: 'badge-bueno', txt: 'Bueno' },
+    { label: '24–72 hs (1–3 días)', max: 72, dot: 'amber', badge: 'badge-aceptable', txt: 'Aceptable' },
+    { label: '72–168 hs (3–7 días)', max: 168, dot: 'orange', badge: 'badge-revisar', txt: 'Revisar' },
+    { label: '> 168 hs (+1 semana)', max: Infinity, dot: 'red', badge: 'badge-critico', txt: 'Crítico' },
+  ];
+  const binCounts = bins.map((b,i) => {
+    const prev = i === 0 ? 0 : bins[i-1].max;
+    return resHours.filter(h => h >= prev && h < b.max).length;
+  });
+
+  destroyChart('tiempos');
+  charts['tiempos'] = new Chart(document.getElementById('chartTiempos'), {
+    type: 'doughnut',
+    data: {
+      labels: bins.map(b => b.label),
+      datasets: [{
+        data: binCounts,
+        backgroundColor: ['#1a7a56','#5aab5a','#e8a04a','#d4662a','#c0392b'],
+        borderWidth: 2, borderColor: '#fff',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+        tooltip: {
+          callbacks: { label: ctx => ` ${ctx.raw} OTs (${((ctx.raw/total)*100).toFixed(1)}%)` }
+        }
+      },
+      cutout: '60%',
+    }
+  });
+
+  // Semáforo list
+  const semList = document.getElementById('semaforoList');
+  semList.innerHTML = bins.map((b,i) => `
+    <div class="semaforo-row">
+      <div class="dot ${b.dot}"></div>
+      <span class="semaforo-label">${b.label}</span>
+      <span class="semaforo-count">${binCounts[i]}</span>
+      <span class="semaforo-pct">${((binCounts[i]/total)*100).toFixed(1)}%</span>
+      <span class="semaforo-badge ${b.badge}">${b.txt}</span>
+    </div>`).join('');
+
+  // ── EDIFICIOS ──
+  const edMap = {};
+  conTec.forEach(r => { const e = r['Cuenta']; if (e) { const k = String(e).trim(); edMap[k]=(edMap[k]||0)+1; } });
+  const edEntries = Object.entries(edMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const edLabels = edEntries.map(([k]) => {
+    const m = k.match(/EDIFICIO\s+(.+?)\s*-\s*\(/i);
+    return m ? m[1] : k.slice(0,30);
+  });
+
+  destroyChart('edificios');
+  charts['edificios'] = new Chart(document.getElementById('chartEdificios'), {
+    type: 'bar',
+    data: {
+      labels: edLabels,
+      datasets: [{
+        data: edEntries.map(([,n]) => n),
+        backgroundColor: '#1a3a5c',
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 35 } },
+        y: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 }, stepSize: 1 } }
+      }
+    }
+  });
+
+  // ── DOWNLOAD ──
+  document.getElementById('btnDownload').onclick = () => generateExcel(df, otGen, label, total, sinTec, edificios, pct, tecEntries, srvEntries, dayMap, binCounts, bins);
+}
+
+function generateExcel(df, otGen, label, total, sinTec, edificios, pct, tecEntries, srvEntries, dayMap, binCounts, bins) {
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['KPI','Valor','Detalle'],
+    ['Total OTs finalizadas', total, 'órdenes'],
+    ['% finalizadas vs generadas', pct, `${total} de ${otGen}`],
+    ['Cerradas en of. técnica', sinTec, 'sin técnico asignado'],
+    ['Edificios atendidos', edificios, 'con visita técnica'],
+  ]), 'KPIs');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Técnico','OTs','% del total'],
+    ...tecEntries.map(([t,n]) => [t, n, ((n/total)*100).toFixed(1)+'%'])
+  ]), 'Por técnico');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Servicio','Cantidad','% del total'],
+    ...srvEntries.map(([s,n]) => [s, n, ((n/total)*100).toFixed(1)+'%'])
+  ]), 'Top servicios');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Día','OTs','% del total'],
+    ...[1,2,3,4,5,6,0].map(d => [{ 0:'Domingo',1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado' }[d], dayMap[d]||0, (((dayMap[d]||0)/total)*100).toFixed(1)+'%'])
+  ]), 'Por día');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Rango','OTs','% del total','Interpretación'],
+    ...bins.map((b,i) => [b.label, binCounts[i], ((binCounts[i]/total)*100).toFixed(1)+'%', b.txt])
+  ]), 'Tiempos resolución');
+
+  const cols = ['Número','Fecha de Creación','Fecha de finalizacion','Tecnico','Cuenta','Servicio','Estado','Observaciones (Insumos)'];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    cols,
+    ...df.map(r => cols.map(c => {
+      const v = r[c];
+      return (c==='Tecnico' && (!v||String(v).trim()==='')) ? 'Of. Técnica' : (v instanceof Date ? v.toLocaleString('es-AR') : (v||''));
+    }))
+  ]), 'Detalle OTs');
+
+  XLSX.writeFile(wb, `Dashboard_ST_${label.replace(/[\s\/]+/g,'_')}.xlsx`);
+}
+</script>
+</body>
+</html>
