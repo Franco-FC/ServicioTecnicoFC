@@ -22,12 +22,15 @@
     appId: "1:291501593759:web:c6dad7938605b0a666feaa"
   });
 
-  // App Check con reCAPTCHA v3
-  const appCheck = firebase.appCheck();
-  appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
-
   const auth = firebase.auth();
   const db = firebase.firestore();
+  const DOMINIO_PERMITIDO = 'fullcontrol.com.ar';
+
+  // App Check con reCAPTCHA v3 — iniciar después de que el DOM esté listo
+  window.addEventListener('DOMContentLoaded', () => {
+    const appCheck = firebase.appCheck();
+    appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
+  });
   const DOMINIO_PERMITIDO = 'fullcontrol.com.ar';
 
   // ── AUTH STATE ──
