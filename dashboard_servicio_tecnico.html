@@ -3,802 +3,1519 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Dashboard · Servicio Técnico</title>
+<title>Panel de Control · Full Control</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-app-check-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/firebase-firestore-compat.min.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyB-igzxdsgAj-MhzGbNfLe95G60lzrCSZ4",
+    authDomain: "area-tecnica-fc.firebaseapp.com",
+    projectId: "area-tecnica-fc",
+    storageBucket: "area-tecnica-fc.firebasestorage.app",
+    messagingSenderId: "291501593759",
+    appId: "1:291501593759:web:c6dad7938605b0a666feaa"
+  });
+
+  // App Check con reCAPTCHA v3
+  const appCheck = firebase.appCheck();
+  appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
+
+  const db = firebase.firestore();
+  window._fb = {
+    saveWeek:   (data) => db.collection('semanas_servtec').add(data),
+    getWeeks:   async () => { const s = await db.collection('semanas_servtec').orderBy('timestamp','asc').get(); return s.docs.map(d=>({id:d.id,...d.data()})); },
+    deleteWeek: (id)  => db.collection('semanas_servtec').doc(id).delete(),
+    saveFidel:   (data) => db.collection('semanas_fidelizacion').add(data),
+    getFidel:   async () => { const s = await db.collection('semanas_fidelizacion').orderBy('timestamp','asc').get(); return s.docs.map(d=>({id:d.id,...d.data()})); },
+    deleteFidel: (id)  => db.collection('semanas_fidelizacion').doc(id).delete()
+  };
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
 <style>
   :root {
-    --navy: #0f2540;
-    --navy-mid: #1a3a5c;
-    --navy-light: #2e6da4;
-    --accent: #e8a04a;
-    --accent-light: #f5d49a;
-    --surface: #f7f8fa;
-    --surface2: #eef1f6;
-    --border: #d8dfe8;
-    --text: #0f2540;
-    --text-muted: #6b7a8d;
-    --white: #ffffff;
-    --green: #1a7a56;
-    --green-light: #d4efe5;
-    --red: #c0392b;
-    --red-light: #fde8e6;
-    --purple: #5340b8;
-    --purple-light: #ede9fc;
-    --teal: #1565a8;
-    --teal-light: #dceeff;
+    --navy:#0f2540;--navy-mid:#1a3a5c;--navy-light:#2e6da4;
+    --accent:#e8a04a;--surface:#f7f8fa;--surface2:#eef1f6;
+    --border:#d8dfe8;--text:#0f2540;--text-muted:#6b7a8d;
+    --white:#ffffff;--green:#1a7a56;--red:#c0392b;
+    --purple:#5340b8;--teal:#1565a8;--teal-light:#dceeff;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--surface);
-    color: var(--text);
-    min-height: 100vh;
-  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);min-height:100vh;}
 
-  /* ── TOP BAR ── */
-  .topbar {
-    background: var(--navy);
-    padding: 0 2rem;
-    display: flex; align-items: center; justify-content: space-between;
-    height: 56px;
-    position: sticky; top: 0; z-index: 100;
-  }
-  .topbar-brand {
-    display: flex; align-items: center; gap: 10px;
-  }
-  .topbar-logo {
-    width: 28px; height: 28px;
-    background: var(--accent);
-    border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .topbar-logo svg { width: 16px; height: 16px; fill: var(--navy); }
-  .topbar-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 15px; font-weight: 700;
-    color: white; letter-spacing: 0.02em;
-  }
-  .topbar-period {
-    font-size: 12px; color: rgba(255,255,255,0.5);
-    font-family: 'DM Sans', sans-serif; font-weight: 300;
-    letter-spacing: 0.04em;
-  }
+  /* HOME */
+  #homeScreen{min-height:100vh;display:flex;flex-direction:column;background:var(--navy);}
+  .home-header{padding:2.5rem 2.5rem 0;display:flex;align-items:center;gap:14px;}
+  .home-logo svg{width:24px;height:24px;fill:var(--navy);}
+  .home-brand{font-family:'Syne',sans-serif;font-size:20px;font-weight:900;color:white;letter-spacing:.02em;display:flex;align-items:center;}
+  .home-hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem 2rem;text-align:center;}
+  .home-hero h1{font-family:'Syne',sans-serif;font-size:42px;font-weight:800;color:white;line-height:1.1;margin-bottom:1rem;}
+  .home-hero h1 span{color:var(--accent);}
+  .home-hero>p{font-size:15px;color:rgba(255,255,255,.5);margin-bottom:3rem;max-width:420px;}
+  .home-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:860px;width:100%;}
+  .home-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:2rem 1.5rem;cursor:pointer;transition:all .2s;text-align:left;}
+  .home-card:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);transform:translateY(-2px);}
+  .home-card.available:hover{border-color:var(--accent);}
+  .home-card-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;}
+  .home-card-icon svg{width:22px;height:22px;}
+  .home-card.servtec .home-card-icon{background:var(--accent);}
+  .home-card.servtec .home-card-icon svg{fill:var(--navy);}
+  .home-card.instalacion .home-card-icon,.home-card.fidelizacion .home-card-icon{background:rgba(255,255,255,.1);}
+  .home-card.instalacion .home-card-icon svg,.home-card.fidelizacion .home-card-icon svg{fill:rgba(255,255,255,.4);}
+  .home-card h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:white;margin-bottom:6px;}
+  .home-card p{font-size:13px;color:rgba(255,255,255,.45);line-height:1.5;}
+  .coming-soon{display:inline-block;margin-top:1rem;font-size:10px;font-weight:600;letter-spacing:.08em;background:rgba(255,255,255,.08);color:rgba(255,255,255,.35);padding:3px 10px;border-radius:20px;text-transform:uppercase;}
+  .arrow{display:inline-block;margin-top:1rem;font-size:11px;font-weight:600;color:var(--accent);}
+  .home-footer{padding:1.5rem 2.5rem;text-align:center;font-size:12px;color:rgba(255,255,255,.2);}
 
-  /* ── UPLOAD SCREEN ── */
-  #uploadScreen {
-    min-height: calc(100vh - 56px);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 2rem;
-  }
-  .upload-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 3rem 2.5rem;
-    max-width: 520px; width: 100%;
-    text-align: center;
-    box-shadow: 0 4px 24px rgba(15,37,64,0.07);
-  }
-  .upload-icon-wrap {
-    width: 72px; height: 72px;
-    background: var(--teal-light);
-    border-radius: 18px;
-    margin: 0 auto 1.5rem;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .upload-icon-wrap svg { width: 36px; height: 36px; fill: var(--teal); }
-  .upload-card h2 {
-    font-family: 'Syne', sans-serif;
-    font-size: 22px; font-weight: 800;
-    margin-bottom: 8px; color: var(--navy);
-  }
-  .upload-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.5rem; }
+  /* TOPBAR */
+  .topbar{background:var(--navy);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;}
+  .topbar-brand{display:flex;align-items:center;gap:10px;}
+  .topbar-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:white;}
+  .topbar-nav{display:flex;align-items:center;gap:16px;}
+  .topbar-period{font-size:12px;color:rgba(255,255,255,.5);}
+  .topbar-back{font-size:12px;color:rgba(255,255,255,.5);cursor:pointer;background:none;border:none;font-family:'DM Sans',sans-serif;transition:color .15s;}
+  .topbar-back:hover{color:white;}
 
-  .dropzone {
-    border: 2px dashed var(--border);
-    border-radius: 14px;
-    padding: 2rem 1.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-bottom: 1.25rem;
-    background: var(--surface);
-  }
-  .dropzone:hover, .dropzone.drag { border-color: var(--navy-light); background: var(--teal-light); }
-  .dropzone p { font-size: 13px; color: var(--text-muted); margin: 0; }
-  .dropzone strong { display: block; font-size: 14px; color: var(--navy); margin-bottom: 4px; }
-  .dropzone input { display: none; }
+  /* UPLOAD */
+  #uploadScreen{min-height:calc(100vh - 56px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;}
+  .upload-card{background:var(--white);border:1px solid var(--border);border-radius:20px;padding:2.5rem;max-width:620px;width:100%;text-align:center;box-shadow:0 4px 24px rgba(15,37,64,.07);}
+  .upload-icon-wrap{width:64px;height:64px;background:var(--teal-light);border-radius:16px;margin:0 auto 1.25rem;display:flex;align-items:center;justify-content:center;}
+  .upload-icon-wrap svg{width:32px;height:32px;fill:var(--teal);}
+  .upload-card h2{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:8px;color:var(--navy);}
+  .upload-card>p{font-size:14px;color:var(--text-muted);line-height:1.6;margin-bottom:1.5rem;}
+  .dropzone{border:2px dashed var(--border);border-radius:14px;padding:1.75rem 1.5rem;cursor:pointer;transition:all .2s;margin-bottom:1rem;background:var(--surface);}
+  .dropzone:hover,.dropzone.drag{border-color:var(--navy-light);background:var(--teal-light);}
+  .dropzone p{font-size:13px;color:var(--text-muted);margin:0;}
+  .dropzone strong{display:block;font-size:14px;color:var(--navy);margin-bottom:4px;}
+  .dropzone input{display:none;}
+  .file-item{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:8px;text-align:left;flex-wrap:wrap;}
+  .file-item-name{flex:1;font-size:13px;font-weight:500;color:var(--navy);min-width:100%;}
+  .file-item label{font-size:11px;color:var(--text-muted);white-space:nowrap;}
+  .file-item input{width:110px;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;}
+  .saved-week-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--surface);}
+  .saved-week-label{flex:1;font-size:13px;font-weight:500;color:var(--navy);}
+  .saved-week-sub{font-size:11px;color:var(--text-muted);}
+  .btn-view-week{font-size:11px;padding:4px 10px;background:var(--navy);color:white;border:none;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;}
+  .btn-del-week{font-size:11px;padding:4px 8px;background:none;color:var(--red);border:1px solid var(--red);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+  .btn-primary{width:100%;padding:12px;background:var(--navy);color:white;border:none;border-radius:10px;font-size:14px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:.25rem;}
+  .btn-primary:hover{background:var(--navy-mid);}
+  .btn-primary:disabled{opacity:.45;cursor:not-allowed;}
+  .status{font-size:12px;margin-top:8px;min-height:16px;text-align:center;}
+  .status.ok{color:var(--green);}
+  .status.err{color:var(--red);}
 
-  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
-  .field label { font-size: 11px; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .field input {
-    width: 100%; padding: 9px 12px;
-    border: 1px solid var(--border); border-radius: 8px;
-    font-size: 14px; font-family: 'DM Sans', sans-serif;
-    color: var(--text); background: var(--white);
-    transition: border-color 0.15s;
-  }
-  .field input:focus { outline: none; border-color: var(--navy-light); }
+  /* DASHBOARD */
+  #dashboard{display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;}
+  .dash-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.75rem;flex-wrap:wrap;gap:1rem;}
+  .dash-header h1{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--navy);}
+  .period-badge{font-size:12px;font-weight:500;background:var(--teal-light);color:var(--teal);padding:4px 12px;border-radius:20px;margin-top:4px;display:inline-block;}
+  .dash-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;}
+  .btn-secondary{padding:9px 16px;border:1px solid var(--border);background:var(--white);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px;}
+  .btn-secondary:hover{border-color:var(--navy-light);color:var(--navy);}
+  .btn-dl{padding:9px 16px;background:var(--navy);color:white;border:none;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .btn-dl:hover{background:var(--navy-mid);}
+  .section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:.85rem;margin-top:.25rem;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.75rem;}
+  .kpi-card{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:1.1rem 1.2rem;position:relative;overflow:hidden;}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+  .kpi-card.navy::before{background:var(--navy);}
+  .kpi-card.green::before{background:var(--green);}
+  .kpi-card.purple::before{background:var(--purple);}
+  .kpi-card.teal::before{background:var(--teal);}
+  .kpi-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:500;margin-bottom:8px;}
+  .kpi-value{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;line-height:1;}
+  .kpi-card.navy .kpi-value{color:var(--navy);}
+  .kpi-card.green .kpi-value{color:var(--green);}
+  .kpi-card.purple .kpi-value{color:var(--purple);}
+  .kpi-card.teal .kpi-value{color:var(--teal);}
+  .kpi-sub{font-size:12px;color:var(--text-muted);margin-top:5px;}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.75rem;}
+  .chart-card{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:1.25rem 1.4rem;}
+  .chart-card h3{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.04em;}
+  .chart-wrap-tall{position:relative;height:280px;}
+  .chart-full{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:1.25rem 1.4rem;margin-bottom:1.75rem;}
+  .chart-full h3{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.04em;}
+  .tables-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.75rem;}
+  .table-card-full{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:1.25rem 1.4rem;overflow-x:auto;margin-bottom:1.75rem;}
+  .table-card-full h3{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.04em;}
+  .table-card{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:1.25rem 1.4rem;overflow:hidden;}
+  .table-card h3{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--navy);margin-bottom:1rem;text-transform:uppercase;letter-spacing:.04em;}
+  table.dt{width:100%;border-collapse:collapse;font-size:13px;}
+  table.dt thead tr{background:var(--navy);}
+  table.dt th{color:white;padding:7px 10px;font-weight:500;font-size:11px;text-align:left;white-space:nowrap;}
+  table.dt th:not(:first-child){text-align:center;}
+  table.dt td{padding:6px 10px;border-bottom:1px solid var(--surface2);vertical-align:middle;}
+  table.dt td:not(:first-child){text-align:center;}
+  table.dt tr:nth-child(even) td{background:var(--surface);}
+  table.dt .badge{display:inline-block;background:var(--teal-light);color:var(--teal);font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;}
+  table.dt .of-tec{color:var(--text-muted);font-style:italic;}
+  .btn-desplegable{background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;font-size:11px;font-family:'DM Sans',sans-serif;color:var(--navy-light);cursor:pointer;white-space:nowrap;transition:all .15s;}
+  .btn-desplegable:hover{background:var(--teal-light);border-color:var(--navy-light);}
+  .srv-detail-wrap{position:relative;display:inline-block;}
+  .srv-detail{display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:50;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:6px 8px;min-width:240px;box-shadow:0 4px 16px rgba(15,37,64,.12);}
+  .srv-detail.open{display:block;}
+  .srv-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--surface2);font-size:11px;}
+  .srv-item:last-child{border-bottom:none;}
+  .srv-name{color:var(--text);flex:1;}
+  .srv-pts{color:var(--text-muted);font-size:10px;min-width:36px;text-align:right;}
 
-  .btn-primary {
-    width: 100%; padding: 12px;
-    background: var(--navy); color: white;
-    border: none; border-radius: 10px;
-    font-size: 14px; font-weight: 500;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer; transition: background 0.15s;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
-  .btn-primary:hover { background: var(--navy-mid); }
-  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  /* EVOLUCIÓN */
+  #evolucionScreen{display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;}
 
-  .status { font-size: 12px; margin-top: 10px; min-height: 16px; text-align: center; }
-  .status.ok { color: var(--green); }
-  .status.err { color: var(--red); }
-
-  /* ── DASHBOARD ── */
-  #dashboard { display: none; padding: 1.75rem 2rem 3rem; max-width: 1100px; margin: 0 auto; }
-
-  .dash-header {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    margin-bottom: 1.75rem; flex-wrap: wrap; gap: 1rem;
-  }
-  .dash-header h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: 26px; font-weight: 800; color: var(--navy);
-    line-height: 1.2;
-  }
-  .dash-header .period-badge {
-    font-size: 12px; font-weight: 500;
-    background: var(--teal-light); color: var(--teal);
-    padding: 4px 12px; border-radius: 20px; margin-top: 4px; display: inline-block;
-  }
-
-  .dash-actions { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
-  .btn-secondary {
-    padding: 9px 16px;
-    border: 1px solid var(--border);
-    background: var(--white); border-radius: 8px;
-    font-size: 13px; font-family: 'DM Sans', sans-serif;
-    color: var(--text); cursor: pointer;
-    transition: all 0.15s; display: flex; align-items: center; gap: 6px;
-  }
-  .btn-secondary:hover { border-color: var(--navy-light); color: var(--navy); }
-  .btn-dl {
-    padding: 9px 16px;
-    background: var(--navy); color: white;
-    border: none; border-radius: 8px;
-    font-size: 13px; font-family: 'DM Sans', sans-serif;
-    cursor: pointer; transition: background 0.15s;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .btn-dl:hover { background: var(--navy-mid); }
-
-  /* KPI CARDS */
-  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.75rem; }
-  .kpi-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.1rem 1.2rem;
-    position: relative; overflow: hidden;
-  }
-  .kpi-card::before {
-    content: ''; position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-  }
-  .kpi-card.navy::before { background: var(--navy); }
-  .kpi-card.green::before { background: var(--green); }
-  .kpi-card.purple::before { background: var(--purple); }
-  .kpi-card.teal::before { background: var(--teal); }
-  .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; margin-bottom: 8px; }
-  .kpi-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; line-height: 1; }
-  .kpi-card.navy .kpi-value { color: var(--navy); }
-  .kpi-card.green .kpi-value { color: var(--green); }
-  .kpi-card.purple .kpi-value { color: var(--purple); }
-  .kpi-card.teal .kpi-value { color: var(--teal); }
-  .kpi-sub { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
-
-  /* SECTION */
-  .section-label {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.1em; color: var(--text-muted);
-    margin-bottom: 0.85rem; margin-top: 0.25rem;
-  }
-
-  /* CHARTS ROW */
-  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.75rem; }
-  .chart-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.25rem 1.4rem;
-  }
-  .chart-card h3 {
-    font-family: 'Syne', sans-serif;
-    font-size: 13px; font-weight: 700;
-    color: var(--navy); margin-bottom: 1rem;
-    text-transform: uppercase; letter-spacing: 0.04em;
-  }
-  .chart-wrap { position: relative; height: 220px; }
-  .chart-wrap-tall { position: relative; height: 280px; }
-
-  /* FULL WIDTH CHART */
-  .chart-full {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.25rem 1.4rem;
-    margin-bottom: 1.75rem;
-  }
-  .chart-full h3 {
-    font-family: 'Syne', sans-serif;
-    font-size: 13px; font-weight: 700;
-    color: var(--navy); margin-bottom: 1rem;
-    text-transform: uppercase; letter-spacing: 0.04em;
-  }
-
-  /* TABLES */
-  .tables-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.75rem; }
-  .table-card {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.25rem 1.4rem;
-    overflow: hidden;
-  }
-  .table-card h3 {
-    font-family: 'Syne', sans-serif;
-    font-size: 13px; font-weight: 700;
-    color: var(--navy); margin-bottom: 1rem;
-    text-transform: uppercase; letter-spacing: 0.04em;
-  }
-  table.dt { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.dt thead tr { background: var(--navy); }
-  table.dt th {
-    color: white; padding: 7px 10px;
-    font-weight: 500; font-size: 11px;
-    text-align: left; white-space: nowrap;
-  }
-  table.dt th:not(:first-child) { text-align: center; }
-  table.dt td {
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--surface2);
-    vertical-align: middle;
-  }
-  table.dt td:not(:first-child) { text-align: center; }
-  table.dt tr:nth-child(even) td { background: var(--surface); }
-  table.dt .badge {
-    display: inline-block;
-    background: var(--teal-light); color: var(--teal);
-    font-size: 10px; font-weight: 600;
-    padding: 2px 8px; border-radius: 20px;
-  }
-  table.dt .of-tec { color: var(--text-muted); font-style: italic; }
-
-  /* TIEMPOS */
-  .tiempos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.75rem; }
-  .semaforo-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 0; border-bottom: 1px solid var(--surface2);
-    font-size: 13px;
-  }
-  .semaforo-row:last-child { border-bottom: none; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .dot.green { background: #1a7a56; }
-  .dot.lime { background: #5aab5a; }
-  .dot.amber { background: #e8a04a; }
-  .dot.orange { background: #d4662a; }
-  .dot.red { background: #c0392b; }
-  .semaforo-label { flex: 1; }
-  .semaforo-count { font-weight: 600; min-width: 30px; text-align: right; }
-  .semaforo-pct { color: var(--text-muted); min-width: 44px; text-align: right; }
-  .semaforo-badge {
-    font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; min-width: 72px; text-align: center;
-  }
-  .badge-excelente { background: #d4efe5; color: #1a7a56; }
-  .badge-bueno { background: #dff0d8; color: #3a7d44; }
-  .badge-aceptable { background: #fef3e2; color: #b07a12; }
-  .badge-revisar { background: #fde8d8; color: #c05a1a; }
-  .badge-critico { background: var(--red-light); color: var(--red); }
-
-  /* RESPONSIVE */
-  @media (max-width: 720px) {
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .charts-row, .tables-row, .tiempos-grid { grid-template-columns: 1fr; }
-    #dashboard { padding: 1rem 1rem 2rem; }
-    .topbar { padding: 0 1rem; }
+  @media(max-width:720px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .charts-row,.tables-row{grid-template-columns:1fr;}
+    #dashboard,#evolucionScreen{padding:1rem 1rem 2rem;}
+    .topbar{padding:0 1rem;}
+    .home-cards{grid-template-columns:1fr;}
+    .home-hero h1{font-size:28px;}
   }
 </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
+<!-- HOME -->
+<div id="homeScreen">
+  <div class="home-header">
+    <div class="home-brand"><span style="color:#3a3a3a;font-weight:900;letter-spacing:.02em;">FULL</span><span style="color:#8DC63F;font-weight:900;letter-spacing:.02em;">CONTROL</span></div>
+  </div>
+  <div class="home-hero">
+    <h1>Reporte <span>Semanal</span></h1>
+    <p>Seleccioná el área para ver el dashboard semanal correspondiente.</p>
+    <div class="home-cards">
+      <div id="btnServtec" class="home-card servtec available">
+        <div class="home-card-icon"><svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></div>
+        <h3>Servicio Técnico</h3>
+        
+        <span class="arrow">Ingresar →</span>
+      </div>
+      <div class="home-card instalacion">
+        <div class="home-card-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg></div>
+        <h3>Instalación</h3>
+        
+        <span class="coming-soon">Próximamente</span>
+      </div>
+      <div id="btnFidelizacion" class="home-card fidelizacion available">
+        <div class="home-card-icon" style="background:var(--accent);"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3C9.5 3 8 4.5 8 4.5C6.5 3.5 4 4 3 6C2 8 3 10 4 11C3 12 3 14 4.5 15C4.5 17 6 18.5 8 18.5C8.5 19.5 10 21 12 21C14 21 15.5 19.5 16 18.5C18 18.5 19.5 17 19.5 15C21 14 21 12 20 11C21 10 22 8 21 6C20 4 17.5 3.5 16 4.5C16 4.5 14.5 3 12 3Z" stroke="var(--navy)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 3V21M8 4.5C8 4.5 8 8 10 10M16 4.5C16 4.5 16 8 14 10M4 11C4 11 7 11 10 13M20 11C20 11 17 11 14 13M4.5 15C4.5 15 7 15 10 16M19.5 15C19.5 15 17 15 14 16" stroke="var(--navy)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Fidelización</h3>
+        
+        <span class="arrow">Ingresar →</span>
+      </div>
+    </div>
+
+    <!-- Botón resumen efectividad -->
+    <div style="max-width:860px;width:100%;margin-top:20px;">
+      <div id="btnResumen" style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:1.25rem 2rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:16px;" onmouseover="this.style.background='rgba(255,255,255,.12)';this.style.borderColor='rgba(232,160,74,.6)'" onmouseout="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.15)'">
+        <div style="width:44px;height:44px;background:rgba(232,160,74,.2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div style="flex:1;">
+          <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:white;margin-bottom:3px;">Resumen de Efectividad · Todos los Técnicos</div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--accent);">Ver tabla →</span>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- RESUMEN EFECTIVIDAD -->
+<div id="resumenScreen" style="display:none;">
 <nav class="topbar">
   <div class="topbar-brand">
-    <div class="topbar-logo">
-      <svg viewBox="0 0 24 24"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2.5 2.1H4.5V5h15v14.1zm0-16.1H4.5C3.4 3 2.5 3.9 2.5 5v14c0 1.1.9 2 2 2H18.5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-    </div>
-    <span class="topbar-title">SERVICIO TÉCNICO</span>
+    <span class="topbar-title">RESUMEN · TODOS LOS TÉCNICOS</span>
   </div>
-  <span class="topbar-period" id="topPeriod">—</span>
+  <div class="topbar-nav">
+    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
+  </div>
 </nav>
 
-<!-- UPLOAD SCREEN -->
+<div id="resumenContent" style="padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
+
+  <!-- Filtro período -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
+    <div>
+      <h1 style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--navy);">Efectividad · Todos los Técnicos</h1>
+      <span style="font-size:12px;color:var(--text-muted);">Datos de Servicio Técnico y Fidelización · ordenados cronológicamente</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <select id="resumenMesFiltro" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);color:var(--text);cursor:pointer;" onchange="renderResumen()">
+        <option value="todos">📊 Todos los meses</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section-label">Tabla comparativa por semana</div>
+  <div class="table-card-full">
+    <h3>% Efectividad por técnico</h3>
+    <table class="dt" id="resumenTabla"></table>
+  </div>
+
+  <div class="section-label">Evolución por técnico</div>
+  <div class="chart-full">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:1rem;">
+      <h3 style="margin:0;">% Efectividad · Servicio Técnico</h3>
+      <div id="stTecFiltros" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div style="position:relative;height:280px;"><canvas id="resumenChartST"></canvas></div>
+  </div>
+  <div class="chart-full">
+    <h3>% Efectividad · Fidelización</h3>
+    <div style="position:relative;height:220px;"><canvas id="resumenChartFidel"></canvas></div>
+  </div>
+
+</div>
+</div>
+<div id="servtecScreen" style="display:none;">
+<nav class="topbar">
+  <div class="topbar-brand">
+    <span class="topbar-title">SERVICIO TÉCNICO</span>
+  </div>
+  <div class="topbar-nav">
+    <span class="topbar-period" id="topPeriod">—</span>
+    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
+  </div>
+</nav>
+
 <div id="uploadScreen">
   <div class="upload-card">
-    <div class="upload-icon-wrap">
-      <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-    </div>
-    <h2>Reporte Semanal</h2>
-    <p>Subí el Excel de servicio técnico para generar el dashboard completo con KPIs, gráficos y tablas.</p>
-
+    <div class="upload-icon-wrap"><svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg></div>
+    <h2>Cargar Semanas</h2>
+    <p>Subí uno o varios Excel. Los datos se guardan en Firebase y estarán disponibles desde cualquier dispositivo.</p>
     <div class="dropzone" id="dropzone">
-      <input type="file" id="fileInput" accept=".xlsx,.xls" />
-      <strong>Arrastrá el archivo aquí o hacé clic</strong>
-      <p>Formato: reporte semanal FC · .xlsx</p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls" multiple />
+      <strong>Arrastrá los archivos aquí o hacé clic</strong>
+      <p>Podés subir múltiples semanas a la vez · .xlsx</p>
     </div>
-
-    <div id="fileBadge" style="display:none; font-size:12px; color:var(--teal); margin-bottom:1rem; font-weight:500;">
-      ✓ <span id="fileName"></span>
-    </div>
-
-    <div class="config-grid">
-      <div class="field">
-        <label>OTs generadas</label>
-        <input type="number" id="otGeneradas" placeholder="ej: 212" />
-      </div>
-      <div class="field">
-        <label>Período</label>
-        <input type="text" id="semanaLabel" placeholder="ej: Semana 2 · 09/03 al 15/03" />
-      </div>
-    </div>
-
+    <div id="configRows"></div>
     <button class="btn-primary" id="btnGenerate" disabled>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
-      Generar dashboard
+      Guardar en Firebase y ver dashboard
     </button>
     <div class="status" id="statusMsg"></div>
+    <div id="savedWeeksSection" style="display:none;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.25rem;text-align:left;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem;">Semanas guardadas en Firebase</div>
+      <div id="savedWeeksList"></div>
+      <button class="btn-secondary" id="btnViewEvolucion" style="margin-top:.75rem;width:100%;justify-content:center;display:none;">
+        📈 Ver evolución de todas las semanas →
+      </button>
+    </div>
   </div>
 </div>
 
-<!-- DASHBOARD -->
 <div id="dashboard">
   <div class="dash-header">
     <div>
-      <h1 id="dashTitle">Reporte de Servicio Técnico</h1>
+      <h1>Reporte de Servicio Técnico</h1>
       <span class="period-badge" id="dashPeriod"></span>
     </div>
     <div class="dash-actions">
-      <button class="btn-secondary" id="btnReset">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-        Nuevo reporte
-      </button>
+      <button class="btn-secondary" id="btnReset">← Cargar otra semana</button>
+      <button class="btn-secondary" onclick="showEvolucion()">📈 Ver evolución</button>
       <button class="btn-dl" id="btnDownload">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
         Descargar Excel
       </button>
     </div>
   </div>
-
-  <!-- KPIs -->
   <div class="section-label">Indicadores clave</div>
   <div class="kpi-grid" id="kpiGrid"></div>
-
-  <!-- CHARTS ROW 1: Técnicos + Servicios -->
   <div class="charts-row">
-    <div class="chart-card">
-      <h3>OTs por técnico</h3>
-      <div class="chart-wrap-tall"><canvas id="chartTecnicos"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Top 10 servicios</h3>
-      <div class="chart-wrap-tall"><canvas id="chartServicios"></canvas></div>
-    </div>
+    <div class="chart-card"><h3>OTs por técnico</h3><div class="chart-wrap-tall"><canvas id="chartTecnicos"></canvas></div></div>
+    <div class="chart-card"><h3>Top 10 servicios</h3><div class="chart-wrap-tall"><canvas id="chartServicios"></canvas></div></div>
   </div>
-
-  <!-- CHARTS ROW 2: Días + Tiempos resolución -->
-  <div class="charts-row">
-    <div class="chart-card">
-      <h3>OTs por día de semana</h3>
-      <div class="chart-wrap"><canvas id="chartDias"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Distribución por tiempo de resolución</h3>
-      <div class="chart-wrap"><canvas id="chartTiempos"></canvas></div>
-    </div>
-  </div>
-
-  <!-- TABLES ROW -->
+  <div class="chart-full"><h3>OTs por día de semana</h3><div style="position:relative;height:220px;"><canvas id="chartDias"></canvas></div></div>
   <div class="section-label">Detalle por técnico y servicio</div>
+  <div class="table-card-full"><h3>Órdenes por técnico</h3><table class="dt" id="tablaTecnicos"></table></div>
   <div class="tables-row">
-    <div class="table-card">
-      <h3>Órdenes por técnico</h3>
-      <table class="dt" id="tablaTecnicos"></table>
-    </div>
-    <div class="table-card">
-      <h3>Top 10 tipos de servicio</h3>
-      <table class="dt" id="tablaServicios"></table>
-    </div>
+    <div class="table-card"><h3>Top 10 tipos de servicio</h3><table class="dt" id="tablaServicios"></table></div>
+    <div class="table-card"><h3>OTs por día de semana</h3><table class="dt" id="tablaDias"></table></div>
   </div>
-
-  <!-- TIEMPOS + DÍAS TABLA -->
-  <div class="section-label">Tiempos y distribución semanal</div>
-  <div class="tiempos-grid">
-    <div class="table-card">
-      <h3>Tiempos de resolución</h3>
-      <div id="semaforoList"></div>
-    </div>
-    <div class="table-card">
-      <h3>OTs por día de semana</h3>
-      <table class="dt" id="tablaDias"></table>
-    </div>
-  </div>
-
-  <!-- EDIFICIOS -->
-  <div class="section-label">Edificios con más órdenes</div>
-  <div class="chart-full">
-    <h3>Top 15 edificios atendidos</h3>
-    <div style="position:relative;height:300px;"><canvas id="chartEdificios"></canvas></div>
-  </div>
-
 </div>
 
+<div id="evolucionScreen">
+  <div class="dash-header">
+    <div>
+      <h1>Evolución Semanal</h1>
+      <span class="period-badge" id="evolPeriodBadge">Servicio Técnico · todas las semanas</span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" onclick="showUpload()">← Volver</button>
+    </div>
+  </div>
+
+  <!-- Filtro por mes -->
+  <div style="margin-bottom:1.5rem;">
+    <div class="section-label">Filtrar por período</div>
+    <div id="mesTabs" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+
+  <div class="section-label">Total de OTs</div>
+  <div class="chart-full"><h3>OTs finalizadas semana a semana</h3><div style="position:relative;height:260px;"><canvas id="chartEvolOTs"></canvas></div></div>
+  <div class="charts-row">
+    <div class="chart-card"><h3>Puntaje por técnico</h3><div class="chart-wrap-tall"><canvas id="chartEvolPuntaje"></canvas></div></div>
+    <div class="chart-card"><h3>% Efectividad por técnico</h3><div class="chart-wrap-tall"><canvas id="chartEvolEfect"></canvas></div></div>
+  </div>
+  <div class="section-label">Comparativa por semana</div>
+  <div class="table-card-full"><h3>Resumen por semana</h3><table class="dt" id="tablaEvolucion"></table></div>
+</div>
+
+</div><!-- servtecScreen -->
+
+<!-- FIDELIZACIÓN -->
+<div id="fidelizacionScreen" style="display:none;">
+<nav class="topbar">
+  <div class="topbar-brand">
+    <span class="topbar-title">FIDELIZACIÓN</span>
+  </div>
+  <div class="topbar-nav">
+    <span class="topbar-period" id="fidelTopPeriod">—</span>
+    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
+  </div>
+</nav>
+
+<div id="fidelUploadScreen" style="min-height:calc(100vh - 56px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
+  <div class="upload-card">
+    <div class="upload-icon-wrap"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3C9.5 3 8 4.5 8 4.5C6.5 3.5 4 4 3 6C2 8 3 10 4 11C3 12 3 14 4.5 15C4.5 17 6 18.5 8 18.5C8.5 19.5 10 21 12 21C14 21 15.5 19.5 16 18.5C18 18.5 19.5 17 19.5 15C21 14 21 12 20 11C21 10 22 8 21 6C20 4 17.5 3.5 16 4.5C16 4.5 14.5 3 12 3Z" stroke="var(--teal)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h2>Cargar Semanas · Fidelización</h2>
+    <p>Subí uno o varios Excel. Los datos de Mauricio González se guardan en Firebase organizados por mes.</p>
+    <div class="dropzone" id="fidelDropzone">
+      <input type="file" id="fidelFileInput" accept=".xlsx,.xls" multiple />
+      <strong>Arrastrá los archivos aquí o hacé clic</strong>
+      <p>Podés subir múltiples semanas a la vez · .xlsx</p>
+    </div>
+    <div id="fidelConfigRows"></div>
+    <button class="btn-primary" id="fidelBtnGenerate" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      Guardar en Firebase y ver dashboard
+    </button>
+    <div class="status" id="fidelStatusMsg"></div>
+    <div id="fidelSavedSection" style="display:none;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.25rem;text-align:left;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem;">Semanas guardadas · Fidelización</div>
+      <div id="fidelSavedList"></div>
+      <button class="btn-secondary" id="fidelBtnEvolucion" style="margin-top:.75rem;width:100%;justify-content:center;display:none;">
+        📈 Ver evolución →
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="fidelDashboard" style="display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
+  <div class="dash-header">
+    <div>
+      <h1>Fidelización · Mauricio González</h1>
+      <span class="period-badge" id="fidelPeriod"></span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" id="fidelBtnReset">← Cargar otra semana</button>
+      <button class="btn-secondary" onclick="fidelShowEvolucion()">📈 Ver evolución</button>
+      <button class="btn-dl" id="fidelBtnDownload">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Descargar Excel
+      </button>
+    </div>
+  </div>
+  <div class="section-label">Indicadores clave</div>
+  <div class="kpi-grid" id="fidelKpiGrid"></div>
+  <div class="charts-row">
+    <div class="chart-card"><h3>Edificios visitados por día</h3><div class="chart-wrap-tall"><canvas id="fidelChartDias"></canvas></div></div>
+    <div class="chart-card"><h3>Top edificios visitados</h3><div class="chart-wrap-tall"><canvas id="fidelChartEdificios"></canvas></div></div>
+  </div>
+  <div class="section-label">Detalle de visitas</div>
+  <div class="table-card-full"><h3>Edificios visitados en la semana</h3><table class="dt" id="fidelTablaEdificios"></table></div>
+</div>
+
+<div id="fidelEvolucionScreen" style="display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
+  <div class="dash-header">
+    <div>
+      <h1>Evolución · Fidelización</h1>
+      <span class="period-badge" id="fidelEvolBadge">Mauricio González · todas las semanas</span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" onclick="fidelShowUpload()">← Volver</button>
+    </div>
+  </div>
+  <div style="margin-bottom:1.5rem;">
+    <div class="section-label">Filtrar por período</div>
+    <div id="fidelMesTabs" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+  <div class="chart-full"><h3>Edificios visitados semana a semana</h3><div style="position:relative;height:260px;"><canvas id="fidelChartEvolEdif"></canvas></div></div>
+  <div class="chart-full"><h3>% Efectividad semana a semana</h3><div style="position:relative;height:260px;"><canvas id="fidelChartEvolEfect"></canvas></div></div>
+  <div class="section-label">Comparativa por semana</div>
+  <div class="table-card-full"><h3>Resumen por semana</h3><table class="dt" id="fidelTablaEvolucion"></table></div>
+</div>
+
+</div><!-- fidelizacionScreen -->
+
 <script>
-// ── CHART REGISTRY ──
 const charts = {};
-function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+function destroyChart(id){ if(charts[id]){charts[id].destroy();delete charts[id];} }
+function toggleDetail(id){
+  const el=document.getElementById(id);
+  const btn=el.previousElementSibling;
+  const open=el.classList.toggle('open');
+  btn.innerHTML=open?'Cerrar ▴':`Ver ${el.children.length} servicios ▾`;
+}
+
+function goTo(s){
+  document.getElementById('homeScreen').style.display=s==='home'?'flex':'none';
+  document.getElementById('servtecScreen').style.display=s==='servtec'?'block':'none';
+  document.getElementById('fidelizacionScreen').style.display=s==='fidelizacion'?'block':'none';
+  document.getElementById('resumenScreen').style.display=s==='resumen'?'block':'none';
+  if(s==='servtec') loadSavedWeeks();
+  if(s==='fidelizacion'){
+    document.getElementById('fidelUploadScreen').style.display='flex';
+    document.getElementById('fidelDashboard').style.display='none';
+    document.getElementById('fidelEvolucionScreen').style.display='none';
+    fidelLoadSavedWeeks();
+  }
+  if(s==='resumen') loadResumen();
+  window.scrollTo(0,0);
+}
+document.getElementById('btnResumen').addEventListener('click', ()=>goTo('resumen'));
+document.getElementById('btnServtec').addEventListener('click', ()=>goTo('servtec'));
+document.getElementById('btnFidelizacion').addEventListener('click', ()=>goTo('fidelizacion'));
+function showUpload(){
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('evolucionScreen').style.display='none';
+  document.getElementById('uploadScreen').style.display='flex';
+  document.getElementById('topPeriod').textContent='—';
+}
+
+// ── COEFICIENTES ──
+const COEF={
+  '1.CAMARA':1.79,'2.LECTORA':0.93,'3.VERIFICAR SENSOR':1.2,
+  '4.REVISIÓN':1.4,'4.REVISION':1.4,'5.SONORIZACION SISTEMA':1.3,'6.BATERIA':1.12,
+  '8. URGENCIA TECNICA':0.8,'91. GUARDIA TECNICA':0,'92. GUARDIA CERRAJERIA':0,
+  '93. URGENCIA CERRAJERIA':1,'94. CERRAJERIA DTP/ELECTRO':0.72,
+  'EXPRESS - 1. FALLA 220V':0.7,'EXPRESS - 2. FALTA DE TEST':0.7,
+  'EXPRESS - 3. REINICIO DE PLACA':0.7,'EXPRESS - 4.FALLA DVR/NVR':0.7,
+  'EXPRESS - 5.FALLA AUTOACTIVACI':0.7,'EXPRESS - 6.ANULACION/HABILITA':0.7,
+  'EXPRESS - 8.TAMPERS EDIFICIO':0.7,'Express - Carteleria':0.7,
+  'Express - Controles remotos':0.7,'P1.PARTICULAR':1.8,'P2.INDUSTRIAS':4.5,'P2. INDUSTRIAS':4.5,
+  'T.Cambio de Equipo':2.22,'T. Cambio de Equipo':2.22,'T. Desinstalación':3,'T.Migración':1,'T. Migración':1,
+  'T.Recableado':4.5,'T.Reparacion de internet':2.5,'T.Varios - uso técnica':0,
+};
+function normalizeStr(s){
+  return s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+}
+function getCoef(srv){
+  if(!srv) return null;
+  const s=srv.trim();
+  // Exact match first
+  if(COEF[s]!==undefined) return COEF[s];
+  // Normalized exact match
+  const sNorm=normalizeStr(s);
+  for(const [k,v] of Object.entries(COEF)){
+    if(normalizeStr(k)===sNorm) return v;
+  }
+  // Normalized startsWith
+  for(const [k,v] of Object.entries(COEF)){
+    if(sNorm.startsWith(normalizeStr(k))) return v;
+  }
+  return null;
+}
+function calcPuntaje(srvMap){
+  let t=0;
+  for(const [s,c] of Object.entries(srvMap)){const cf=getCoef(s);if(cf!==null)t+=cf*c;}
+  return t;
+}
+function parseDate(v){
+  if(!v) return null;
+  if(v instanceof Date) return isNaN(v)?null:v;
+  const d=new Date(v);return isNaN(d)?null:d;
+}
 
 // ── UPLOAD LOGIC ──
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const btnGenerate = document.getElementById('btnGenerate');
-const statusMsg = document.getElementById('statusMsg');
-let parsedData = null;
+const dropzone=document.getElementById('dropzone');
+const fileInput=document.getElementById('fileInput');
+const btnGenerate=document.getElementById('btnGenerate');
+const statusMsg=document.getElementById('statusMsg');
+let pendingFiles=[];
 
-dropzone.addEventListener('click', () => fileInput.click());
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-dropzone.addEventListener('drop', e => {
-  e.preventDefault(); dropzone.classList.remove('drag');
-  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+dropzone.addEventListener('click',()=>fileInput.click());
+dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');handleFiles(e.dataTransfer.files);});
+fileInput.addEventListener('change',()=>handleFiles(fileInput.files));
 
-function handleFile(file) {
-  document.getElementById('fileName').textContent = file.name;
-  document.getElementById('fileBadge').style.display = 'block';
-  statusMsg.className = 'status'; statusMsg.textContent = 'Leyendo archivo...';
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-      let headerRow = -1;
-      for (let i = 0; i < raw.length; i++) {
-        if (raw[i] && raw[i].some(v => v && String(v).toLowerCase().includes('número'))) {
-          headerRow = i; break;
-        }
-      }
-      if (headerRow === -1) { statusMsg.className='status err'; statusMsg.textContent='No se encontró encabezado. Verificá el formato.'; return; }
-      const headers = raw[headerRow];
-      const rows = raw.slice(headerRow + 1).filter(r => r && r[0] != null && String(r[0]).trim() !== '');
-      parsedData = rows.map(r => {
-        const obj = {};
-        headers.forEach((h, i) => { if (h) obj[String(h).trim()] = r[i]; });
-        return obj;
-      });
-      statusMsg.className = 'status ok';
-      statusMsg.textContent = `✓ ${parsedData.length} órdenes cargadas`;
-      btnGenerate.disabled = false;
-    } catch(err) {
-      statusMsg.className = 'status err';
-      statusMsg.textContent = 'Error: ' + err.message;
+function handleFiles(files){
+  pendingFiles=[];
+  document.getElementById('configRows').innerHTML='';
+  btnGenerate.disabled=true;
+  if(!files.length) return;
+  let loaded=0;
+  Array.from(files).forEach((file,i)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        let headerRow=-1;
+        for(let j=0;j<raw.length;j++){if(raw[j]&&raw[j].some(v=>v&&String(v).toLowerCase().includes('número'))){headerRow=j;break;}}
+        if(headerRow===-1){statusMsg.className='status err';statusMsg.textContent=`${file.name}: formato no reconocido`;return;}
+        const headers=raw[headerRow];
+        const rows=raw.slice(headerRow+1).filter(r=>r&&r[0]!=null&&String(r[0]).trim()!=='');
+        const df=rows.map(r=>{const obj={};headers.forEach((h,k)=>{if(h)obj[String(h).trim()]=r[k];});return obj;});
+        pendingFiles[i]={df,name:file.name};
+        renderConfig(i,file.name,df.length);
+        loaded++;
+        if(loaded===files.length){btnGenerate.disabled=false;statusMsg.className='status ok';statusMsg.textContent=`✓ ${files.length} archivo(s) listos`;}
+      }catch(err){statusMsg.className='status err';statusMsg.textContent='Error: '+err.message;}
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function renderConfig(i,name,count){
+  const div=document.createElement('div');
+  div.className='file-item';
+  div.innerHTML=`<span class="file-item-name">📄 ${name} <span style="color:var(--text-muted);font-weight:400;">(${count} OTs)</span></span>
+    <label>Mes/Año&nbsp;</label><input type="text" id="mes_${i}" placeholder="ej: Marzo 2026" />
+    <label>&nbsp;OTs generadas&nbsp;</label><input type="number" id="otGen_${i}" placeholder="ej: 212" />
+    <label>&nbsp;Período&nbsp;</label><input type="text" id="label_${i}" placeholder="Semana 2 · 09/03" />`;
+  document.getElementById('configRows').appendChild(div);
+}
+
+btnGenerate.addEventListener('click', async()=>{
+  if(!window._fb){
+    statusMsg.className='status';statusMsg.textContent='Conectando con Firebase...';
+    await new Promise(resolve=>{
+      if(window._fb){resolve();return;}
+      window.addEventListener('firebaseReady',resolve,{once:true});
+      setTimeout(resolve,8000); // fallback máximo 8 seg
+    });
+  }
+  if(!window._fb){statusMsg.className='status err';statusMsg.textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';return;}
+  btnGenerate.disabled=true;
+  statusMsg.className='status';statusMsg.textContent='Guardando en Firebase...';
+  try{
+    for(let i=0;i<pendingFiles.length;i++){
+      if(!pendingFiles[i]) continue;
+      const{df}=pendingFiles[i];
+      const otGen=parseInt(document.getElementById(`otGen_${i}`)?.value)||df.length;
+      const label=document.getElementById(`label_${i}`)?.value||`Semana ${i+1}`;
+      const mes=document.getElementById(`mes_${i}`)?.value||'Sin clasificar';
+      const summary=computeSummary(df,otGen,label);
+      await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
     }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-btnGenerate.addEventListener('click', () => {
-  if (!parsedData) return;
-  const otGen = parseInt(document.getElementById('otGeneradas').value) || parsedData.length;
-  const label = document.getElementById('semanaLabel').value || 'Semana actual';
-  buildDashboard(parsedData, otGen, label);
+    statusMsg.className='status ok';statusMsg.textContent='✓ Guardado en Firebase correctamente';
+    pendingFiles=[];
+    document.getElementById('configRows').innerHTML='';
+    btnGenerate.disabled=true;
+    const weeks=await window._fb.getWeeks();
+    renderSavedWeeks(weeks);
+    if(weeks.length) buildDashboard(weeks[weeks.length-1]);
+  }catch(err){
+    statusMsg.className='status err';statusMsg.textContent='Error Firebase: '+err.message;
+    btnGenerate.disabled=false;
+  }
 });
 
-document.getElementById('btnReset').addEventListener('click', () => {
-  document.getElementById('dashboard').style.display = 'none';
-  document.getElementById('uploadScreen').style.display = 'flex';
-  document.getElementById('topPeriod').textContent = '—';
-  parsedData = null;
-  btnGenerate.disabled = true;
-  statusMsg.textContent = '';
-  document.getElementById('fileBadge').style.display = 'none';
-  fileInput.value = '';
-});
+document.getElementById('btnReset').addEventListener('click',showUpload);
+document.getElementById('btnViewEvolucion').addEventListener('click',showEvolucion);
 
-// ── DATE PARSE ──
-function parseDate(v) {
-  if (!v) return null;
-  if (v instanceof Date) return isNaN(v) ? null : v;
-  const d = new Date(v);
-  return isNaN(d) ? null : d;
-}
-function diffHours(a, b) {
-  const da = parseDate(a), db = parseDate(b);
-  if (!da || !db) return null;
-  return (db - da) / 3600000;
+async function loadSavedWeeks(){
+  if(!window._fb){
+    window.addEventListener('firebaseReady', loadSavedWeeks, {once:true});
+    return;
+  }
+  try{
+    const weeks=await window._fb.getWeeks();
+    renderSavedWeeks(weeks);
+  }catch(e){console.error(e);}
 }
 
-const DAYS_ES = { 0:'Domingo', 1:'Lunes', 2:'Martes', 3:'Miércoles', 4:'Jueves', 5:'Viernes', 6:'Sábado' };
-const DAYS_ORDER = [1,2,3,4,5,6,0];
-const CHART_COLORS = ['#0f2540','#1a3a5c','#2e6da4','#e8a04a','#5340b8','#1a7a56','#c0392b','#1565a8','#7b5ea7','#3d7a8a'];
+function renderSavedWeeks(weeks){
+  const section=document.getElementById('savedWeeksSection');
+  const list=document.getElementById('savedWeeksList');
+  const btnEvol=document.getElementById('btnViewEvolucion');
+  list.innerHTML='';
+  if(!weeks.length){section.style.display='none';return;}
+  section.style.display='block';
+  btnEvol.style.display=weeks.length>1?'flex':'none';
 
-function buildDashboard(df, otGen, label) {
-  const total = df.length;
-  const conTec = df.filter(r => r['Tecnico'] && String(r['Tecnico']).trim() !== '');
-  const sinTec = total - conTec.length;
-  const edificios = new Set(conTec.map(r => r['Cuenta'])).size;
-  const pct = ((total / otGen) * 100).toFixed(1) + '%';
+  // Group by mes
+  const byMes={};
+  weeks.forEach(w=>{
+    const mes=w.mes||'Sin clasificar';
+    if(!byMes[mes]) byMes[mes]=[];
+    byMes[mes].push(w);
+  });
 
-  document.getElementById('uploadScreen').style.display = 'none';
-  document.getElementById('dashboard').style.display = 'block';
-  document.getElementById('dashTitle').textContent = 'Reporte de Servicio Técnico';
-  document.getElementById('dashPeriod').textContent = label;
-  document.getElementById('topPeriod').textContent = label;
+  // Sort months: most recent first
+  const mesesOrdenados=Object.keys(byMes).reverse();
 
-  // ── KPIs ──
-  const kpiGrid = document.getElementById('kpiGrid');
-  kpiGrid.innerHTML = [
-    { cls:'navy', label:'Total OTs finalizadas', value: total, sub: 'órdenes registradas' },
-    { cls:'green', label:'% finalizadas vs generadas', value: pct, sub: `${total} de ${otGen} generadas` },
-    { cls:'purple', label:'Cerradas en of. técnica', value: sinTec, sub: 'sin técnico asignado' },
-    { cls:'teal', label:'Edificios atendidos', value: edificios, sub: 'con visita técnica' },
-  ].map(k => `<div class="kpi-card ${k.cls}">
-    <div class="kpi-label">${k.label}</div>
-    <div class="kpi-value">${k.value}</div>
-    <div class="kpi-sub">${k.sub}</div>
-  </div>`).join('');
+  mesesOrdenados.forEach(mes=>{
+    // Folder header
+    const folder=document.createElement('div');
+    folder.style.cssText='margin-bottom:4px;';
+    const folderId=`folder-${mes.replace(/\s+/g,'-')}`;
+    folder.innerHTML=`
+      <div onclick="toggleFolder('${folderId}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--navy);border-radius:8px;cursor:pointer;user-select:none;">
+        <span id="${folderId}-icon" style="font-size:13px;">📁</span>
+        <span style="flex:1;font-size:13px;font-weight:600;color:white;">${mes}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,.5);">${byMes[mes].length} semana(s)</span>
+        <span id="${folderId}-arrow" style="color:rgba(255,255,255,.5);font-size:11px;">▾</span>
+      </div>
+      <div id="${folderId}" style="padding-left:12px;margin-top:4px;">
+        ${byMes[mes].map(w=>`
+          <div class="saved-week-item" style="margin-bottom:4px;">
+            <div style="flex:1">
+              <div class="saved-week-label">📄 ${w.label}</div>
+              <div class="saved-week-sub">${w.totalOTs} OTs · ${w.pct} finalizadas</div>
+            </div>
+            <button class="btn-view-week" onclick='buildDashboard(${JSON.stringify(w).replace(/'/g,"&#39;")})'>Ver →</button>
+            <button class="btn-del-week" onclick='deleteWeek("${w.id}")'>✕</button>
+          </div>`).join('')}
+      </div>`;
+    list.appendChild(folder);
+  });
+}
 
-  // ── TÉCNICOS ──
-  const tecMap = {};
-  conTec.forEach(r => { const t = String(r['Tecnico']).trim(); tecMap[t] = (tecMap[t]||0)+1; });
-  const tecEntries = Object.entries(tecMap).sort((a,b)=>b[1]-a[1]);
-  tecEntries.push(['Oficina Técnica', sinTec]);
+function toggleFolder(id){
+  const el=document.getElementById(id);
+  const arrow=document.getElementById(id+'-arrow');
+  const icon=document.getElementById(id+'-icon');
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  arrow.textContent=open?'▸':'▾';
+  icon.textContent=open?'📁':'📂';
+}
 
-  // Chart técnicos (horizontal bar)
+async function deleteWeek(id){
+  if(!confirm('¿Eliminar esta semana de Firebase?')) return;
+  await window._fb.deleteWeek(id);
+  const weeks=await window._fb.getWeeks();
+  renderSavedWeeks(weeks);
+}
+
+// ── COMPUTE SUMMARY ──
+function computeSummary(df,otGen,label){
+  const TECNICOS_VALIDOS = ['Santiago Munhoz','Ariel Sandoval','Cerrajeria Aleluya','Mauricio Gonzales','Gonzalo Rodriguez','Mauricio Gonzalez'];
+  const total=df.length;
+  const conTec=df.filter(r=>r['Tecnico']&&String(r['Tecnico']).trim()!=='');
+  const sinTec=total-conTec.length;
+  const pct=((total/otGen)*100).toFixed(1)+'%';
+  const tecMap={},tecStats={},tecSrvMap={};
+  conTec.forEach(r=>{
+    const t=String(r['Tecnico']).trim();
+    tecMap[t]=(tecMap[t]||0)+1;
+    if(!tecStats[t])tecStats[t]={dias:new Set(),g_tec:0,g_cerr:0};
+    if(!tecSrvMap[t])tecSrvMap[t]={};
+    const srv=String(r['Servicio']||'').toLowerCase();
+    const esGuardia = srv.includes('guardia tecnica')||srv.includes('guardia cerrajeria');
+    const fecha=r['Fecha de finalizacion'];
+    if(fecha && !esGuardia){
+      const d=fecha instanceof Date?fecha:new Date(fecha);
+      if(!isNaN(d)&&d.getDay()!==0&&d.getDay()!==6) tecStats[t].dias.add(d.toDateString());
+    }
+    if(srv.includes('guardia tecnica'))tecStats[t].g_tec++;
+    if(srv.includes('guardia cerrajeria'))tecStats[t].g_cerr++;
+    const sk=String(r['Servicio']||'').trim();
+    if(sk)tecSrvMap[t][sk]=(tecSrvMap[t][sk]||0)+1;
+  });
+  const tecnicos=Object.entries(tecMap)
+    .filter(([t])=>TECNICOS_VALIDOS.some(v=>t.toLowerCase().includes(v.toLowerCase().split(' ')[0].toLowerCase())))
+    .sort((a,b)=>b[1]-a[1]).map(([t,n])=>{
+      const st=tecStats[t]||{dias:new Set(),g_tec:0,g_cerr:0};
+      const dias=st.dias.size||1;
+      const puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
+      const efect=parseFloat(((puntaje/(9*dias))*100).toFixed(1));
+      return{nombre:t,ots:n,dias,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
+    });
+  const srvMap={};
+  df.forEach(r=>{const s=r['Servicio'];if(s){const k=String(s).trim();srvMap[k]=(srvMap[k]||0)+1;}});
+  const topServicios=Object.entries(srvMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([s,n])=>({s,n}));
+  const dayMap={};
+  df.forEach(r=>{const d=parseDate(r['Fecha de Creación']);if(d){const dow=d.getDay();dayMap[dow]=(dayMap[dow]||0)+1;}});
+  return{label,otGen,totalOTs:total,sinTec,pct,tecnicos,topServicios,dayMap};
+}
+
+// ── BUILD DASHBOARD ──
+const CC=['#0f2540','#1a3a5c','#2e6da4','#e8a04a','#5340b8','#1a7a56','#c0392b','#1565a8','#7b5ea7','#3d7a8a'];
+const DE={0:'Domingo',1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado'};
+const DO=[1,2,3,4,5,6,0];
+
+function buildDashboard(w){
+  document.getElementById('uploadScreen').style.display='none';
+  document.getElementById('evolucionScreen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  document.getElementById('dashPeriod').textContent=w.label;
+  document.getElementById('topPeriod').textContent=w.label;
+  const total=w.totalOTs;
+
+  document.getElementById('kpiGrid').innerHTML=[
+    {cls:'navy',label:'Total OTs finalizadas',value:w.totalOTs,sub:'órdenes registradas'},
+    {cls:'green',label:'% finalizadas vs generadas',value:w.pct,sub:`${w.totalOTs} de ${w.otGen} generadas`},
+    {cls:'purple',label:'Cerradas en of. técnica',value:w.sinTec,sub:'sin técnico asignado'},
+  ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
+
+  const tl=[...w.tecnicos.map(t=>t.nombre),'Oficina Técnica'];
+  const tv=[...w.tecnicos.map(t=>t.ots),w.sinTec];
   destroyChart('tecnicos');
-  const allTec = [...tecEntries];
-  charts['tecnicos'] = new Chart(document.getElementById('chartTecnicos'), {
-    type: 'bar',
-    data: {
-      labels: allTec.map(([t]) => t),
-      datasets: [{
-        data: allTec.map(([,n]) => n),
-        backgroundColor: allTec.map((_, i) => i === allTec.length-1 ? '#b0b8c4' : CHART_COLORS[i % CHART_COLORS.length]),
-        borderRadius: 4, borderSkipped: false,
-      }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } },
-        y: { grid: { display: false }, ticks: { font: { size: 11 } } }
-      }
-    }
+  charts['tecnicos']=new Chart(document.getElementById('chartTecnicos'),{
+    type:'bar',data:{labels:tl,datasets:[{data:tv,backgroundColor:tl.map((_,i)=>i===tl.length-1?'#b0b8c4':CC[i%CC.length]),borderRadius:4,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#eef1f6'},ticks:{font:{size:11}}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
   });
 
-  // Table técnicos
-  let tHTML = '<thead><tr><th>Técnico</th><th>OTs</th><th>%</th></tr></thead><tbody>';
-  tecEntries.forEach(([t,n], i) => {
-    const isOf = t === 'Oficina Técnica';
-    tHTML += `<tr><td ${isOf?'class="of-tec"':''}>${t}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;
+  let rowId=0;
+  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Días hábiles</th><th>OTs/día</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
+  w.tecnicos.forEach(t=>{
+    const jornada=t.ots-t.g_tec-t.g_cerr;
+    const ppd=(jornada/t.dias).toFixed(1);
+    const gtec=t.g_tec>0?`<span class="badge">${t.g_tec}</span>`:'—';
+    const gcerr=t.g_cerr>0?`<span class="badge">${t.g_cerr}</span>`:'—';
+    const srvs=Object.entries(t.srvMap||{}).sort((a,b)=>b[1]-a[1]);
+    const id=`srv-detail-${rowId++}`;
+    const detalle=srvs.map(([s,c])=>{const cf=getCoef(s);const pts=cf!==null?(cf*c).toFixed(2):'—';return`<div class="srv-item"><span class="srv-name">${s}</span><span class="badge">${c}</span><span class="srv-pts">${pts}</span></div>`;}).join('');
+    const btn=`<div class="srv-detail-wrap"><button class="btn-desplegable" onclick="toggleDetail('${id}')">Ver ${srvs.length} servicios ▾</button><div class="srv-detail" id="${id}">${detalle}</div></div>`;
+    const isExcl=t.nombre==='Asignacion Interna';
+    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${t.dias}</td><td>${ppd}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${isExcl?'—':'<strong>'+t.puntaje.toFixed(2)+'</strong>'}</td><td>${isExcl?'—':'<strong>'+t.efect.toFixed(1)+'%</strong>'}</td></tr>`;
   });
-  document.getElementById('tablaTecnicos').innerHTML = tHTML + '</tbody>';
-
-  // ── SERVICIOS ──
-  const srvMap = {};
-  df.forEach(r => { const s = r['Servicio']; if (s) { const k = String(s).trim(); srvMap[k]=(srvMap[k]||0)+1; } });
-  const srvEntries = Object.entries(srvMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+  document.getElementById('tablaTecnicos').innerHTML=tHTML+'</tbody>';
 
   destroyChart('servicios');
-  charts['servicios'] = new Chart(document.getElementById('chartServicios'), {
-    type: 'bar',
-    data: {
-      labels: srvEntries.map(([s]) => s.length > 28 ? s.slice(0,26)+'…' : s),
-      datasets: [{
-        data: srvEntries.map(([,n]) => n),
-        backgroundColor: '#2e6da4',
-        borderRadius: 4, borderSkipped: false,
-      }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } },
-        y: { grid: { display: false }, ticks: { font: { size: 10 } } }
-      }
-    }
+  charts['servicios']=new Chart(document.getElementById('chartServicios'),{
+    type:'bar',data:{labels:w.topServicios.map(s=>s.s.length>28?s.s.slice(0,26)+'…':s.s),datasets:[{data:w.topServicios.map(s=>s.n),backgroundColor:'#2e6da4',borderRadius:4,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#eef1f6'},ticks:{font:{size:11}}},y:{grid:{display:false},ticks:{font:{size:10}}}}}
   });
+  let sHTML='<thead><tr><th>Servicio</th><th>Cant.</th><th>%</th></tr></thead><tbody>';
+  w.topServicios.forEach(({s,n})=>{sHTML+=`<tr><td>${s}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;});
+  document.getElementById('tablaServicios').innerHTML=sHTML+'</tbody>';
 
-  let sHTML = '<thead><tr><th>Servicio</th><th>Cant.</th><th>%</th></tr></thead><tbody>';
-  srvEntries.forEach(([s,n]) => {
-    sHTML += `<tr><td>${s}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;
-  });
-  document.getElementById('tablaServicios').innerHTML = sHTML + '</tbody>';
-
-  // ── DÍAS ──
-  const dayMap = {};
-  df.forEach(r => {
-    const d = parseDate(r['Fecha de Creación']);
-    if (d) { const dow = d.getDay(); dayMap[dow]=(dayMap[dow]||0)+1; }
-  });
-
+  const dv=DO.map(d=>w.dayMap[d]||0);
   destroyChart('dias');
-  const dayLabels = DAYS_ORDER.map(d => DAYS_ES[d]);
-  const dayVals = DAYS_ORDER.map(d => dayMap[d]||0);
-  charts['dias'] = new Chart(document.getElementById('chartDias'), {
-    type: 'bar',
-    data: {
-      labels: dayLabels,
-      datasets: [{
-        data: dayVals,
-        backgroundColor: DAYS_ORDER.map(d => d===0||d===6 ? '#e8a04a' : '#0f2540'),
-        borderRadius: 4, borderSkipped: false,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: { label: ctx => ` ${ctx.raw} OTs (${((ctx.raw/total)*100).toFixed(1)}%)` }
+  charts['dias']=new Chart(document.getElementById('chartDias'),{
+    type:'bar',data:{labels:DO.map(d=>DE[d]),datasets:[{data:dv,backgroundColor:DO.map(d=>d===0||d===6?'#e8a04a':'#0f2540'),borderRadius:4,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw} OTs (${((ctx.raw/total)*100).toFixed(1)}%)`}}},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#eef1f6'},ticks:{font:{size:11}}}}}
+  });
+  let dHTML='<thead><tr><th>Día</th><th>OTs</th><th>%</th></tr></thead><tbody>';
+  DO.forEach(d=>{const n=w.dayMap[d]||0;dHTML+=`<tr><td>${DE[d]}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;});
+  document.getElementById('tablaDias').innerHTML=dHTML+'</tbody>';
+
+  document.getElementById('btnDownload').onclick=()=>{
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['KPI','Valor'],['Total OTs',w.totalOTs],['% Finalizadas',w.pct],['Cerradas Of. Técnica',w.sinTec]]),'KPIs');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Técnico','OTs','Puntaje','% Efect.'],...w.tecnicos.map(t=>[t.nombre,t.ots,t.puntaje,t.efect+'%'])]),'Técnicos');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Servicio','Cant.'],...w.topServicios.map(s=>[s.s,s.n])]),'Servicios');
+    XLSX.writeFile(wb,`Dashboard_ST_${w.label.replace(/[\s\/]+/g,'_')}.xlsx`);
+  };
+}
+
+// ── EVOLUCIÓN ──
+let _allWeeks = [];
+let _mesActivo = 'todos';
+
+// Extrae la primera fecha del label: "Semana 2 · 09/03 al 15/03" → Date(2026, 2, 9)
+function extractStartDate(label){
+  const m = label.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if(!m) return new Date(0);
+  const day = parseInt(m[1]);
+  const month = parseInt(m[2]) - 1;
+  const year = m[3] ? (m[3].length===2 ? 2000+parseInt(m[3]) : parseInt(m[3])) : 2026;
+  return new Date(year, month, day);
+}
+
+function sortWeeks(weeks){
+  return [...weeks].sort((a,b) => extractStartDate(a.label) - extractStartDate(b.label));
+}
+
+async function showEvolucion(){
+  if(!window._fb) return;
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('uploadScreen').style.display='none';
+  document.getElementById('evolucionScreen').style.display='block';
+  document.getElementById('topPeriod').textContent='Evolución';
+  window.scrollTo(0,0);
+  const raw = await window._fb.getWeeks();
+  _allWeeks = sortWeeks(raw);
+  if(!_allWeeks.length) return;
+  _mesActivo = 'todos';
+  renderMesTabs();
+  renderEvolucion();
+}
+
+function renderMesTabs(){
+  // Sort months by the earliest week they contain
+  const mesesRaw = [...new Set(_allWeeks.map(w=>w.mes||'Sin clasificar'))];
+  const mesesOrdenados = mesesRaw.sort((a,b)=>{
+    const aDate = Math.min(..._allWeeks.filter(w=>(w.mes||'Sin clasificar')===a).map(w=>extractStartDate(w.label)));
+    const bDate = Math.min(..._allWeeks.filter(w=>(w.mes||'Sin clasificar')===b).map(w=>extractStartDate(w.label)));
+    return aDate - bDate;
+  });
+  const meses = ['todos', ...mesesOrdenados];
+  const tabs = document.getElementById('mesTabs');
+  tabs.innerHTML = meses.map(m=>`
+    <button onclick="setMesActivo('${m}')" id="tab-${m.replace(/\s+/g,'-')}"
+      style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);
+      font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;
+      background:${m===_mesActivo?'var(--navy)':'var(--white)'};
+      color:${m===_mesActivo?'white':'var(--text)'};">
+      ${m==='todos'?'📊 Todos los meses':'📁 '+m}
+    </button>`).join('');
+}
+
+function setMesActivo(mes){
+  _mesActivo = mes;
+  renderMesTabs();
+  renderEvolucion();
+}
+
+function renderEvolucion(){
+  const weeks = _mesActivo==='todos'
+    ? _allWeeks
+    : _allWeeks.filter(w=>(w.mes||'Sin clasificar')===_mesActivo);
+
+  if(!weeks.length) return;
+
+  const badge = _mesActivo==='todos' ? 'Todas las semanas' : _mesActivo;
+  document.getElementById('evolPeriodBadge').textContent = `Servicio Técnico · ${badge}`;
+
+  const labels = weeks.map(w=>w.label);
+
+  destroyChart('evolOTs');
+  charts['evolOTs']=new Chart(document.getElementById('chartEvolOTs'),{
+    type:'line',
+    data:{labels,datasets:[{
+      label:'OTs finalizadas',
+      data:weeks.map(w=>w.totalOTs),
+      borderColor:'#0f2540',backgroundColor:'rgba(15,37,64,.08)',
+      tension:.3,pointRadius:5,fill:true
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:false}}}
+  });
+
+  const EVOL_TECNICOS=['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Mauricio Gonzalez','Gonzalo Rodriguez'];
+  const EVOL_COLORS=['#2e6da4','#e8a04a','#c0392b','#1a7a56','#5340b8'];
+  const tecNames=[...new Set(weeks.flatMap(w=>w.tecnicos.map(t=>t.nombre)))]
+    .filter(t=>EVOL_TECNICOS.some(v=>t.toLowerCase().includes(v.toLowerCase().split(' ')[0])));
+  const getTecColor=(t)=>{const i=EVOL_TECNICOS.findIndex(v=>t.toLowerCase().includes(v.toLowerCase().split(' ')[0]));return EVOL_COLORS[i>=0?i:0];};
+
+  destroyChart('evolPuntaje');
+  charts['evolPuntaje']=new Chart(document.getElementById('chartEvolPuntaje'),{
+    type:'line',
+    data:{labels,datasets:tecNames.map(t=>({
+      label:t,data:weeks.map(w=>{const f=w.tecnicos.find(x=>x.nombre===t);return f?f.puntaje:null;}),
+      borderColor:getTecColor(t),backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true}}}
+  });
+
+  destroyChart('evolEfect');
+  charts['evolEfect']=new Chart(document.getElementById('chartEvolEfect'),{
+    type:'line',
+    data:{labels,datasets:tecNames.map(t=>({
+      label:t,data:weeks.map(w=>{const f=w.tecnicos.find(x=>x.nombre===t);return f?f.efect:null;}),
+      borderColor:getTecColor(t),backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{callback:v=>v+'%'}}}}
+  });
+
+  // Tabla agrupada por mes si es "todos", o por semana si es un mes específico
+  let html='';
+  if(_mesActivo==='todos'){
+    // Agrupar por mes en la tabla
+    const byMes={};
+    weeks.forEach(w=>{const m=w.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(w);});
+    const mesesSorted=Object.keys(byMes).sort((a,b)=>{
+      const aDate=Math.min(...byMes[a].map(w=>extractStartDate(w.label)));
+      const bDate=Math.min(...byMes[b].map(w=>extractStartDate(w.label)));
+      return aDate-bDate;
+    });
+    html=`<thead><tr><th>Mes / Semana</th><th>Total OTs</th><th>% Finaliz.</th>${tecNames.map(t=>`<th style="color:white">${t}</th>`).join('')}<th style="color:white">Of. Técnica</th></tr></thead><tbody>`;
+    mesesSorted.forEach(mes=>{
+      // Fila de mes (subtotal)
+      const mWeeks=sortWeeks(byMes[mes]);
+      const totalOTs=mWeeks.reduce((s,w)=>s+w.totalOTs,0);
+      const sinTec=mWeeks.reduce((s,w)=>s+w.sinTec,0);
+      html+=`<tr style="background:#1a3a5c;">
+        <td style="color:white;font-weight:600;">📁 ${mes}</td>
+        <td style="color:white;font-weight:600;">${totalOTs}</td>
+        <td style="color:rgba(255,255,255,.7);">—</td>
+        ${tecNames.map(()=>`<td style="color:rgba(255,255,255,.5);">—</td>`).join('')}
+        <td style="color:white;font-weight:600;">${sinTec}</td>
+      </tr>`;
+      // Filas de semanas dentro del mes
+      mWeeks.forEach((w,i)=>{
+        const bg=i%2===0?'':'background:var(--surface)';
+        html+=`<tr style="${bg}">
+          <td style="padding-left:20px;">↳ ${w.label}</td>
+          <td>${w.totalOTs}</td><td>${w.pct}</td>
+          ${tecNames.map(t=>{const f=w.tecnicos.find(x=>x.nombre===t);return`<td>${f?f.efect.toFixed(1)+'%':'—'}</td>`;}).join('')}
+          <td>${w.sinTec}</td>
+        </tr>`;
+      });
+    });
+  } else {
+    // Solo semanas del mes seleccionado
+    html=`<thead><tr><th>Semana</th><th>Total OTs</th><th>% Finaliz.</th>${tecNames.map(t=>`<th style="color:white">${t}</th>`).join('')}<th style="color:white">Of. Técnica</th></tr></thead><tbody>`;
+    weeks.forEach((w,i)=>{
+      const bg=i%2===0?'':'background:var(--surface)';
+      html+=`<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.totalOTs}</td><td>${w.pct}</td>`;
+      tecNames.forEach(t=>{const f=w.tecnicos.find(x=>x.nombre===t);html+=`<td>${f?f.efect.toFixed(1)+'%':'—'}</td>`;});
+      html+=`<td>${w.sinTec}</td></tr>`;
+    });
+  }
+  document.getElementById('tablaEvolucion').innerHTML=html+'</tbody>';
+}
+
+// ── FIDELIZACIÓN ──
+const FIDEL_TECNICO = 'mauricio';
+const FIDEL_OBJETIVO_DIA = 7 / 5; // 1.4 edificios/día hábil
+
+const fidelDropzone = document.getElementById('fidelDropzone');
+const fidelFileInput = document.getElementById('fidelFileInput');
+const fidelBtnGenerate = document.getElementById('fidelBtnGenerate');
+const fidelStatusMsg = document.getElementById('fidelStatusMsg');
+let fidelPendingFiles = [];
+
+fidelDropzone.addEventListener('click', () => fidelFileInput.click());
+fidelDropzone.addEventListener('dragover', e => { e.preventDefault(); fidelDropzone.classList.add('drag'); });
+fidelDropzone.addEventListener('dragleave', () => fidelDropzone.classList.remove('drag'));
+fidelDropzone.addEventListener('drop', e => { e.preventDefault(); fidelDropzone.classList.remove('drag'); fidelHandleFiles(e.dataTransfer.files); });
+fidelFileInput.addEventListener('change', () => fidelHandleFiles(fidelFileInput.files));
+
+function fidelHandleFiles(files) {
+  fidelPendingFiles = [];
+  document.getElementById('fidelConfigRows').innerHTML = '';
+  fidelBtnGenerate.disabled = true;
+  if (!files.length) return;
+  let loaded = 0;
+  Array.from(files).forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        let headerRow = -1;
+        for (let j = 0; j < raw.length; j++) {
+          if (raw[j] && raw[j].some(v => v && String(v).toLowerCase().includes('número'))) { headerRow = j; break; }
         }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-        y: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } }
-      }
+        if (headerRow === -1) { fidelStatusMsg.className = 'status err'; fidelStatusMsg.textContent = `${file.name}: formato no reconocido`; return; }
+        const headers = raw[headerRow];
+        const rows = raw.slice(headerRow + 1).filter(r => r && r[0] != null && String(r[0]).trim() !== '');
+        const df = rows.map(r => { const obj = {}; headers.forEach((h, k) => { if (h) obj[String(h).trim()] = r[k]; }); return obj; });
+        fidelPendingFiles[i] = { df, name: file.name };
+        fidelRenderConfig(i, file.name, df.filter(r => r['Tecnico'] && String(r['Tecnico']).toLowerCase().includes(FIDEL_TECNICO)).length);
+        loaded++;
+        if (loaded === files.length) { fidelBtnGenerate.disabled = false; fidelStatusMsg.className = 'status ok'; fidelStatusMsg.textContent = `✓ ${files.length} archivo(s) listos`; }
+      } catch (err) { fidelStatusMsg.className = 'status err'; fidelStatusMsg.textContent = 'Error: ' + err.message; }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function fidelRenderConfig(i, name, count) {
+  const div = document.createElement('div');
+  div.className = 'file-item';
+  div.innerHTML = `<span class="file-item-name">📄 ${name} <span style="color:var(--text-muted);font-weight:400;">(${count} OTs de Mauricio)</span></span>
+    <label>Mes/Año&nbsp;</label><input type="text" id="fidelMes_${i}" placeholder="ej: Marzo 2026" />
+    <label>&nbsp;Período&nbsp;</label><input type="text" id="fidelLabel_${i}" placeholder="Semana 2 · 09/03" />`;
+  document.getElementById('fidelConfigRows').appendChild(div);
+}
+
+fidelBtnGenerate.addEventListener('click', async () => {
+  if (!window._fb) { fidelStatusMsg.className = 'status err'; fidelStatusMsg.textContent = 'Firebase no disponible.'; return; }
+  fidelBtnGenerate.disabled = true;
+  fidelStatusMsg.className = 'status'; fidelStatusMsg.textContent = 'Guardando en Firebase...';
+  try {
+    for (let i = 0; i < fidelPendingFiles.length; i++) {
+      if (!fidelPendingFiles[i]) continue;
+      const { df } = fidelPendingFiles[i];
+      const label = document.getElementById(`fidelLabel_${i}`)?.value || `Semana ${i + 1}`;
+      const mes = document.getElementById(`fidelMes_${i}`)?.value || 'Sin clasificar';
+      const summary = fidelComputeSummary(df, label);
+      await window._fb.saveFidel({ ...summary, mes, timestamp: Date.now() });
+    }
+    fidelStatusMsg.className = 'status ok'; fidelStatusMsg.textContent = '✓ Guardado en Firebase';
+    fidelPendingFiles = [];
+    document.getElementById('fidelConfigRows').innerHTML = '';
+    fidelBtnGenerate.disabled = true;
+    const weeks = await window._fb.getFidel();
+    fidelRenderSavedWeeks(weeks);
+    if (weeks.length) fidelBuildDashboard(weeks[weeks.length - 1]);
+  } catch (err) {
+    fidelStatusMsg.className = 'status err'; fidelStatusMsg.textContent = 'Error: ' + err.message;
+    fidelBtnGenerate.disabled = false;
+  }
+});
+
+document.getElementById('fidelBtnReset').addEventListener('click', fidelShowUpload);
+document.getElementById('fidelBtnEvolucion').addEventListener('click', fidelShowEvolucion);
+
+function fidelShowUpload() {
+  document.getElementById('fidelDashboard').style.display = 'none';
+  document.getElementById('fidelEvolucionScreen').style.display = 'none';
+  document.getElementById('fidelUploadScreen').style.display = 'flex';
+  document.getElementById('fidelTopPeriod').textContent = '—';
+}
+
+async function fidelLoadSavedWeeks() {
+  if (!window._fb) { window.addEventListener('firebaseReady', fidelLoadSavedWeeks, { once: true }); return; }
+  try { const weeks = await window._fb.getFidel(); fidelRenderSavedWeeks(weeks); } catch (e) { console.error(e); }
+}
+
+function fidelRenderSavedWeeks(weeks) {
+  const section = document.getElementById('fidelSavedSection');
+  const list = document.getElementById('fidelSavedList');
+  const btnEvol = document.getElementById('fidelBtnEvolucion');
+  list.innerHTML = '';
+  if (!weeks.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  btnEvol.style.display = weeks.length > 1 ? 'flex' : 'none';
+  const byMes = {};
+  weeks.forEach(w => { const m = w.mes || 'Sin clasificar'; if (!byMes[m]) byMes[m] = []; byMes[m].push(w); });
+  const mesesOrdenados = Object.keys(byMes).sort((a, b) => {
+    const aD = Math.min(...byMes[a].map(w => extractStartDate(w.label)));
+    const bD = Math.min(...byMes[b].map(w => extractStartDate(w.label)));
+    return aD - bD;
+  });
+  mesesOrdenados.forEach(mes => {
+    const folder = document.createElement('div');
+    folder.style.cssText = 'margin-bottom:4px;';
+    const fId = `fidel-folder-${mes.replace(/\s+/g, '-')}`;
+    folder.innerHTML = `
+      <div onclick="toggleFolder('${fId}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--navy);border-radius:8px;cursor:pointer;">
+        <span id="${fId}-icon" style="font-size:13px;">📁</span>
+        <span style="flex:1;font-size:13px;font-weight:600;color:white;">${mes}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,.5);">${byMes[mes].length} semana(s)</span>
+        <span id="${fId}-arrow" style="color:rgba(255,255,255,.5);font-size:11px;">▾</span>
+      </div>
+      <div id="${fId}" style="padding-left:12px;margin-top:4px;">
+        ${sortWeeks(byMes[mes]).map(w => `
+          <div class="saved-week-item" style="margin-bottom:4px;">
+            <div style="flex:1">
+              <div class="saved-week-label">📄 ${w.label}</div>
+              <div class="saved-week-sub">${w.edificiosVisitados} edificios · ${w.diasHabiles} días hábiles · ${w.efectividad}% efectividad</div>
+            </div>
+            <button class="btn-view-week" onclick='fidelBuildDashboard(${JSON.stringify(w).replace(/'/g, "&#39;")})'>Ver →</button>
+            <button class="btn-del-week" onclick='fidelDeleteWeek("${w.id}")'>✕</button>
+          </div>`).join('')}
+      </div>`;
+    list.appendChild(folder);
+  });
+}
+
+async function fidelDeleteWeek(id) {
+  if (!confirm('¿Eliminar esta semana?')) return;
+  await window._fb.deleteFidel(id);
+  const weeks = await window._fb.getFidel();
+  fidelRenderSavedWeeks(weeks);
+}
+
+// ── COMPUTE FIDELIZACIÓN ──
+function fidelComputeSummary(df, label) {
+  // Solo OTs de Mauricio
+  const dfMauricio = df.filter(r => r['Tecnico'] && String(r['Tecnico']).toLowerCase().includes(FIDEL_TECNICO));
+
+  // Días hábiles: fechas únicas de finalización, lunes a viernes
+  const diasSet = new Set();
+  dfMauricio.forEach(r => {
+    const fecha = r['Fecha de finalizacion'];
+    if (fecha) {
+      const d = fecha instanceof Date ? fecha : new Date(fecha);
+      if (!isNaN(d) && d.getDay() !== 0 && d.getDay() !== 6) diasSet.add(d.toDateString());
     }
   });
+  const diasHabiles = diasSet.size || 1;
 
-  let dHTML = '<thead><tr><th>Día</th><th>OTs</th><th>%</th></tr></thead><tbody>';
-  DAYS_ORDER.forEach(d => {
-    const n = dayMap[d]||0;
-    dHTML += `<tr><td>${DAYS_ES[d]}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;
-  });
-  document.getElementById('tablaDias').innerHTML = dHTML + '</tbody>';
+  // Edificios únicos visitados
+  const edSet = new Set();
+  dfMauricio.forEach(r => { if (r['Cuenta']) edSet.add(String(r['Cuenta']).trim()); });
+  const edificiosVisitados = edSet.size;
 
-  // ── TIEMPOS RESOLUCIÓN ──
-  const resHours = df.map(r => diffHours(r['Fecha de Creación'], r['Fecha de finalizacion'])).filter(h => h !== null && h >= 0);
-  const bins = [
-    { label: '0–4 hs (mismo día)', max: 4, dot: 'green', badge: 'badge-excelente', txt: 'Excelente' },
-    { label: '4–24 hs (1 día)', max: 24, dot: 'lime', badge: 'badge-bueno', txt: 'Bueno' },
-    { label: '24–72 hs (1–3 días)', max: 72, dot: 'amber', badge: 'badge-aceptable', txt: 'Aceptable' },
-    { label: '72–168 hs (3–7 días)', max: 168, dot: 'orange', badge: 'badge-revisar', txt: 'Revisar' },
-    { label: '> 168 hs (+1 semana)', max: Infinity, dot: 'red', badge: 'badge-critico', txt: 'Crítico' },
-  ];
-  const binCounts = bins.map((b,i) => {
-    const prev = i === 0 ? 0 : bins[i-1].max;
-    return resHours.filter(h => h >= prev && h < b.max).length;
-  });
+  // % Efectividad: edificios / objetivo redondeado * 100
+  const objetivoSemana = Math.round(FIDEL_OBJETIVO_DIA * diasHabiles);
+  const efectividad = parseFloat(((edificiosVisitados / objetivoSemana) * 100).toFixed(1));
 
-  destroyChart('tiempos');
-  charts['tiempos'] = new Chart(document.getElementById('chartTiempos'), {
-    type: 'doughnut',
-    data: {
-      labels: bins.map(b => b.label),
-      datasets: [{
-        data: binCounts,
-        backgroundColor: ['#1a7a56','#5aab5a','#e8a04a','#d4662a','#c0392b'],
-        borderWidth: 2, borderColor: '#fff',
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
-        tooltip: {
-          callbacks: { label: ctx => ` ${ctx.raw} OTs (${((ctx.raw/total)*100).toFixed(1)}%)` }
-        }
-      },
-      cutout: '60%',
-    }
-  });
-
-  // Semáforo list
-  const semList = document.getElementById('semaforoList');
-  semList.innerHTML = bins.map((b,i) => `
-    <div class="semaforo-row">
-      <div class="dot ${b.dot}"></div>
-      <span class="semaforo-label">${b.label}</span>
-      <span class="semaforo-count">${binCounts[i]}</span>
-      <span class="semaforo-pct">${((binCounts[i]/total)*100).toFixed(1)}%</span>
-      <span class="semaforo-badge ${b.badge}">${b.txt}</span>
-    </div>`).join('');
-
-  // ── EDIFICIOS ──
+  // Detalle por edificio
   const edMap = {};
-  conTec.forEach(r => { const e = r['Cuenta']; if (e) { const k = String(e).trim(); edMap[k]=(edMap[k]||0)+1; } });
-  const edEntries = Object.entries(edMap).sort((a,b)=>b[1]-a[1]).slice(0,15);
-  const edLabels = edEntries.map(([k]) => {
-    const m = k.match(/EDIFICIO\s+(.+?)\s*-\s*\(/i);
-    return m ? m[1] : k.slice(0,30);
+  dfMauricio.forEach(r => {
+    if (r['Cuenta']) {
+      const k = String(r['Cuenta']).trim();
+      edMap[k] = (edMap[k] || 0) + 1;
+    }
+  });
+  const topEdificios = Object.entries(edMap).sort((a, b) => b[1] - a[1]).map(([k, n]) => {
+    const m = k.match(/\(([^,)]+)/); const raw = m ? m[1].trim() : k.slice(0, 40);
+    return { label: raw.replace(/\s*N[°º]\s*/gi, ' ').trim(), cuenta: k, n };
   });
 
-  destroyChart('edificios');
-  charts['edificios'] = new Chart(document.getElementById('chartEdificios'), {
-    type: 'bar',
-    data: {
-      labels: edLabels,
-      datasets: [{
-        data: edEntries.map(([,n]) => n),
-        backgroundColor: '#1a3a5c',
-        borderRadius: 4, borderSkipped: false,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 }, maxRotation: 35 } },
-        y: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 }, stepSize: 1 } }
+  // OTs por día de la semana
+  const dayMap = {};
+  dfMauricio.forEach(r => {
+    const d = parseDate(r['Fecha de Creación']); if (d) { const dow = d.getDay(); dayMap[dow] = (dayMap[dow] || 0) + 1; }
+  });
+
+  // Edificios únicos por día hábil
+  const edPorDia = {};
+  dfMauricio.forEach(r => {
+    const fecha = r['Fecha de finalizacion'];
+    if (fecha && r['Cuenta']) {
+      const d = fecha instanceof Date ? fecha : new Date(fecha);
+      if (!isNaN(d) && d.getDay() !== 0 && d.getDay() !== 6) {
+        const key = d.toDateString();
+        if (!edPorDia[key]) edPorDia[key] = new Set();
+        edPorDia[key].add(String(r['Cuenta']).trim());
       }
     }
   });
+  const edPorDiaArr = Object.entries(edPorDia).sort((a, b) => new Date(a[0]) - new Date(b[0]))
+    .map(([d, s]) => { const dt = new Date(d); return { dia: DE[dt.getDay()] + ' ' + dt.getDate() + '/' + (dt.getMonth() + 1), n: s.size }; });
 
-  // ── DOWNLOAD ──
-  document.getElementById('btnDownload').onclick = () => generateExcel(df, otGen, label, total, sinTec, edificios, pct, tecEntries, srvEntries, dayMap, binCounts, bins);
+  return { label, diasHabiles, edificiosVisitados, efectividad, objetivoSemana, topEdificios, edPorDiaArr, dayMap };
 }
 
-function generateExcel(df, otGen, label, total, sinTec, edificios, pct, tecEntries, srvEntries, dayMap, binCounts, bins) {
-  const wb = XLSX.utils.book_new();
+// ── BUILD FIDELIZACIÓN DASHBOARD ──
+function fidelBuildDashboard(w) {
+  document.getElementById('fidelUploadScreen').style.display = 'none';
+  document.getElementById('fidelEvolucionScreen').style.display = 'none';
+  document.getElementById('fidelDashboard').style.display = 'block';
+  document.getElementById('fidelPeriod').textContent = w.label;
+  document.getElementById('fidelTopPeriod').textContent = w.label;
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['KPI','Valor','Detalle'],
-    ['Total OTs finalizadas', total, 'órdenes'],
-    ['% finalizadas vs generadas', pct, `${total} de ${otGen}`],
-    ['Cerradas en of. técnica', sinTec, 'sin técnico asignado'],
-    ['Edificios atendidos', edificios, 'con visita técnica'],
-  ]), 'KPIs');
+  // KPIs
+  const pctColor = w.efectividad >= 100 ? 'green' : w.efectividad >= 70 ? 'teal' : 'purple';
+  document.getElementById('fidelKpiGrid').innerHTML = [
+    { cls: 'navy', label: 'Edificios visitados', value: w.edificiosVisitados, sub: `objetivo: ${w.objetivoSemana} (${w.diasHabiles} días × 1.4)` },
+    { cls: pctColor, label: '% Efectividad', value: w.efectividad + '%', sub: `${w.edificiosVisitados} de ${w.objetivoSemana} objetivo` },
+    { cls: 'teal', label: 'Días hábiles trabajados', value: w.diasHabiles, sub: 'lunes a viernes con OTs' },
+    { cls: 'navy', label: 'Objetivo semanal base', value: '7', sub: '5 días × 1.4 edificios/día' },
+  ].map(k => `<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Técnico','OTs','% del total'],
-    ...tecEntries.map(([t,n]) => [t, n, ((n/total)*100).toFixed(1)+'%'])
-  ]), 'Por técnico');
+  // Chart edificios por día
+  destroyChart('fidelDias');
+  charts['fidelDias'] = new Chart(document.getElementById('fidelChartDias'), {
+    type: 'bar',
+    data: { labels: w.edPorDiaArr.map(d => d.dia), datasets: [{ data: w.edPorDiaArr.map(d => d.n), backgroundColor: '#2e6da4', borderRadius: 4, borderSkipped: false }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 11 } } }, y: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 }, stepSize: 1 }, beginAtZero: true } } }
+  });
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Servicio','Cantidad','% del total'],
-    ...srvEntries.map(([s,n]) => [s, n, ((n/total)*100).toFixed(1)+'%'])
-  ]), 'Top servicios');
+  // Chart top edificios
+  const topEd = w.topEdificios.slice(0, 10);
+  destroyChart('fidelEdificios');
+  charts['fidelEdificios'] = new Chart(document.getElementById('fidelChartEdificios'), {
+    type: 'bar',
+    data: { labels: topEd.map(e => e.label.length > 25 ? e.label.slice(0, 23) + '…' : e.label), datasets: [{ data: topEd.map(e => e.n), backgroundColor: '#1a3a5c', borderRadius: 4, borderSkipped: false }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#eef1f6' }, ticks: { font: { size: 11 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+  });
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Día','OTs','% del total'],
-    ...[1,2,3,4,5,6,0].map(d => [{ 0:'Domingo',1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado' }[d], dayMap[d]||0, (((dayMap[d]||0)/total)*100).toFixed(1)+'%'])
-  ]), 'Por día');
+  // Tabla edificios
+  let tHTML = '<thead><tr><th>Edificio</th><th>Visitas</th></tr></thead><tbody>';
+  w.topEdificios.forEach((e, i) => {
+    tHTML += `<tr><td style="${i % 2 === 0 ? '' : 'background:var(--surface)'}">${e.label}</td><td style="text-align:center;${i % 2 === 0 ? '' : 'background:var(--surface)'}">${e.n}</td></tr>`;
+  });
+  document.getElementById('fidelTablaEdificios').innerHTML = tHTML + '</tbody>';
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Rango','OTs','% del total','Interpretación'],
-    ...bins.map((b,i) => [b.label, binCounts[i], ((binCounts[i]/total)*100).toFixed(1)+'%', b.txt])
-  ]), 'Tiempos resolución');
-
-  const cols = ['Número','Fecha de Creación','Fecha de finalizacion','Tecnico','Cuenta','Servicio','Estado','Observaciones (Insumos)'];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    cols,
-    ...df.map(r => cols.map(c => {
-      const v = r[c];
-      return (c==='Tecnico' && (!v||String(v).trim()==='')) ? 'Of. Técnica' : (v instanceof Date ? v.toLocaleString('es-AR') : (v||''));
-    }))
-  ]), 'Detalle OTs');
-
-  XLSX.writeFile(wb, `Dashboard_ST_${label.replace(/[\s\/]+/g,'_')}.xlsx`);
+  document.getElementById('fidelBtnDownload').onclick = () => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['KPI', 'Valor'],
+      ['Edificios visitados', w.edificiosVisitados],
+      ['% Efectividad', w.efectividad + '%'],
+      ['Días hábiles', w.diasHabiles],
+      ['Objetivo semana', w.objetivoSemana],
+    ]), 'KPIs');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Edificio', 'Visitas'], ...w.topEdificios.map(e => [e.label, e.n])]), 'Edificios');
+    XLSX.writeFile(wb, `Fidelizacion_${w.label.replace(/[\s\/]+/g, '_')}.xlsx`);
+  };
 }
+
+// ── EVOLUCIÓN FIDELIZACIÓN ──
+let _fidelAllWeeks = [];
+let _fidelMesActivo = 'todos';
+
+async function fidelShowEvolucion() {
+  if (!window._fb) return;
+  document.getElementById('fidelDashboard').style.display = 'none';
+  document.getElementById('fidelUploadScreen').style.display = 'none';
+  document.getElementById('fidelEvolucionScreen').style.display = 'block';
+  document.getElementById('fidelTopPeriod').textContent = 'Evolución';
+  window.scrollTo(0, 0);
+  const raw = await window._fb.getFidel();
+  _fidelAllWeeks = sortWeeks(raw);
+  _fidelMesActivo = 'todos';
+  fidelRenderMesTabs();
+  fidelRenderEvolucion();
+}
+
+function fidelRenderMesTabs() {
+  const mesesRaw = [...new Set(_fidelAllWeeks.map(w => w.mes || 'Sin clasificar'))];
+  const mesesOrdenados = mesesRaw.sort((a, b) => {
+    const aD = Math.min(..._fidelAllWeeks.filter(w => (w.mes || 'Sin clasificar') === a).map(w => extractStartDate(w.label)));
+    const bD = Math.min(..._fidelAllWeeks.filter(w => (w.mes || 'Sin clasificar') === b).map(w => extractStartDate(w.label)));
+    return aD - bD;
+  });
+  const meses = ['todos', ...mesesOrdenados];
+  document.getElementById('fidelMesTabs').innerHTML = meses.map(m => `
+    <button onclick="setFidelMes('${m}')" style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;background:${m === _fidelMesActivo ? 'var(--navy)' : 'var(--white)'};color:${m === _fidelMesActivo ? 'white' : 'var(--text)'};">
+      ${m === 'todos' ? '📊 Todos los meses' : '📁 ' + m}
+    </button>`).join('');
+}
+
+function setFidelMes(mes) { _fidelMesActivo = mes; fidelRenderMesTabs(); fidelRenderEvolucion(); }
+
+function fidelRenderEvolucion() {
+  const weeks = _fidelMesActivo === 'todos' ? _fidelAllWeeks : _fidelAllWeeks.filter(w => (w.mes || 'Sin clasificar') === _fidelMesActivo);
+  if (!weeks.length) return;
+  document.getElementById('fidelEvolBadge').textContent = `Mauricio González · ${_fidelMesActivo === 'todos' ? 'todas las semanas' : _fidelMesActivo}`;
+  const labels = weeks.map(w => w.label);
+
+  destroyChart('fidelEvolEdif');
+  charts['fidelEvolEdif'] = new Chart(document.getElementById('fidelChartEvolEdif'), {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Edificios visitados', data: weeks.map(w => w.edificiosVisitados), borderColor: '#2e6da4', backgroundColor: 'rgba(46,109,164,.1)', tension: .3, pointRadius: 5, fill: true },
+      { label: 'Objetivo', data: weeks.map(w => w.objetivoSemana), borderColor: '#e8a04a', backgroundColor: 'transparent', borderDash: [6, 3], tension: 0, pointRadius: 3 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#eef1f6' }, beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } } }
+  });
+
+  destroyChart('fidelEvolEfect');
+  charts['fidelEvolEfect'] = new Chart(document.getElementById('fidelChartEvolEfect'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: '% Efectividad', data: weeks.map(w => w.efectividad), backgroundColor: weeks.map(w => w.efectividad >= 100 ? '#1a7a56' : w.efectividad >= 70 ? '#2e6da4' : '#c0392b'), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#eef1f6' }, beginAtZero: true, ticks: { callback: v => v + '%' } } } }
+  });
+
+  // Tabla
+  let html = '';
+  if (_fidelMesActivo === 'todos') {
+    const byMes = {};
+    weeks.forEach(w => { const m = w.mes || 'Sin clasificar'; if (!byMes[m]) byMes[m] = []; byMes[m].push(w); });
+    const mesesSorted = Object.keys(byMes).sort((a, b) => Math.min(...byMes[a].map(w => extractStartDate(w.label))) - Math.min(...byMes[b].map(w => extractStartDate(w.label))));
+    html = `<thead><tr><th>Mes / Semana</th><th>Edificios</th><th>Objetivo</th><th>Días hábiles</th><th>% Efectividad</th></tr></thead><tbody>`;
+    mesesSorted.forEach(mes => {
+      const mW = sortWeeks(byMes[mes]);
+      const totEdif = mW.reduce((s, w) => s + w.edificiosVisitados, 0);
+      html += `<tr style="background:#1a3a5c;"><td style="color:white;font-weight:600;">📁 ${mes}</td><td style="color:white;font-weight:600;">${totEdif}</td><td colspan="3" style="color:rgba(255,255,255,.5);">—</td></tr>`;
+      mW.forEach((w, i) => {
+        const bg = i % 2 === 0 ? '' : 'background:var(--surface)';
+        const efColor = w.efectividad >= 100 ? 'color:#1a7a56;font-weight:600;' : w.efectividad >= 70 ? 'color:#1565a8;' : 'color:#c0392b;';
+        html += `<tr style="${bg}"><td style="padding-left:20px;">↳ ${w.label}</td><td>${w.edificiosVisitados}</td><td>${w.objetivoSemana}</td><td>${w.diasHabiles}</td><td style="${efColor}">${w.efectividad}%</td></tr>`;
+      });
+    });
+  } else {
+    html = `<thead><tr><th>Semana</th><th>Edificios</th><th>Objetivo</th><th>Días hábiles</th><th>% Efectividad</th></tr></thead><tbody>`;
+    weeks.forEach((w, i) => {
+      const bg = i % 2 === 0 ? '' : 'background:var(--surface)';
+      const efColor = w.efectividad >= 100 ? 'color:#1a7a56;font-weight:600;' : w.efectividad >= 70 ? 'color:#1565a8;' : 'color:#c0392b;';
+      html += `<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.edificiosVisitados}</td><td>${w.objetivoSemana}</td><td>${w.diasHabiles}</td><td style="${efColor}">${w.efectividad}%</td></tr>`;
+    });
+  }
+  document.getElementById('fidelTablaEvolucion').innerHTML = html + '</tbody>';
+}
+
+// ── RESUMEN EFECTIVIDAD ──
+const TECNICOS_CONFIG = [
+  { nombre: 'Santiago Munhoz',   areas: ['st'],        color: '#2e6da4' },
+  { nombre: 'Ariel Sandoval',    areas: ['st'],        color: '#e8a04a' },
+  { nombre: 'Mauricio Gonzales', areas: ['st','fidel'],color: '#1a7a56' },
+  { nombre: 'Gonzalo Rodriguez', areas: ['st'],        color: '#5340b8' },
+  { nombre: 'Marcos Martin',     areas: ['st'],        color: '#c0392b' },
+  { nombre: 'Lucas Espinosa',    areas: ['instalacion'],color:'#0f2540' },
+  { nombre: 'Ezequiel Wagner',   areas: ['instalacion'],color:'#7b5ea7' },
+  { nombre: 'Cristian Biglia',   areas: ['instalacion'],color:'#3d7a8a' },
+];
+
+let _resumenSTWeeks = [];
+let _resumenFidelWeeks = [];
+
+async function loadResumen(){
+  if(!window._fb) { window.addEventListener('firebaseReady', loadResumen, {once:true}); return; }
+  try {
+    _resumenSTWeeks = sortWeeks(await window._fb.getWeeks());
+    _resumenFidelWeeks = sortWeeks(await window._fb.getFidel());
+    // Populate month filter
+    const allMeses = [...new Set([
+      ..._resumenSTWeeks.map(w=>w.mes||'Sin clasificar'),
+      ..._resumenFidelWeeks.map(w=>w.mes||'Sin clasificar')
+    ])].sort((a,b)=>{
+      const aD = Math.min(...[..._resumenSTWeeks,..._resumenFidelWeeks].filter(w=>(w.mes||'Sin clasificar')===a).map(w=>extractStartDate(w.label)));
+      const bD = Math.min(...[..._resumenSTWeeks,..._resumenFidelWeeks].filter(w=>(w.mes||'Sin clasificar')===b).map(w=>extractStartDate(w.label)));
+      return aD-bD;
+    });
+    const sel = document.getElementById('resumenMesFiltro');
+    sel.innerHTML = '<option value="todos">📊 Todos los meses</option>' +
+      allMeses.map(m=>`<option value="${m}">📁 ${m}</option>`).join('');
+    renderResumen();
+  } catch(e){ console.error(e); }
+}
+
+function renderResumen(){
+  const mesFiltro = document.getElementById('resumenMesFiltro').value;
+  let stWeeks = mesFiltro==='todos' ? _resumenSTWeeks : _resumenSTWeeks.filter(w=>(w.mes||'Sin clasificar')===mesFiltro);
+  let fidelWeeks = mesFiltro==='todos' ? _resumenFidelWeeks : _resumenFidelWeeks.filter(w=>(w.mes||'Sin clasificar')===mesFiltro);
+  const allLabels = [...new Set([...stWeeks.map(w=>w.label), ...fidelWeeks.map(w=>w.label)])];
+  const sortedLabels = allLabels.sort((a,b)=>extractStartDate(a)-extractStartDate(b));
+
+  // Columnas ST (incluye Mauricio)
+  const stCols = ['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Gonzalo Rodriguez','Marcos Martin'];
+  // Columnas Fidelizacion (incluye Mauricio)
+  const fidelCols = ['Mauricio Gonzales'];
+  // Columnas Instalacion
+  const instCols = ['Lucas Espinosa','Ezequiel Wagner','Cristian Biglia'];
+
+  function efCell(ef, isInst){
+    if(isInst) return `<td style="text-align:center;color:var(--text-muted);font-size:11px;font-style:italic;">—</td>`;
+    if(ef==null) return `<td style="text-align:center;color:var(--text-muted);">—</td>`;
+    const c=ef>=80?'#1a7a56':ef>=60?'#1565a8':'#c0392b';
+    return `<td style="text-align:center;font-weight:600;color:${c};">${ef}%</td>`;
+  }
+
+  function getTecEf(stW, nombre){
+    const tec = stW?.tecnicos?.find(x=>x.nombre.toLowerCase().includes(nombre.toLowerCase().split(' ')[0]));
+    return tec ? tec.efect : null;
+  }
+
+  // ── ENCABEZADO con separacion visual ST | Fidel | Instalac ──
+  const stSpan = stCols.length;
+  const fidelSpan = fidelCols.length;
+  const instSpan = instCols.length;
+
+  const headerRow = `<thead>
+    <tr>
+      <th rowspan="2" style="vertical-align:middle;min-width:130px;">Semana</th>
+      <th colspan="${stSpan}" style="color:white;text-align:center;font-size:11px;border-bottom:2px solid rgba(255,255,255,.3);">Servicio Técnico</th>
+      <th colspan="${fidelSpan}" style="color:white;text-align:center;font-size:11px;border-bottom:2px solid rgba(255,255,255,.3);">Fidelización</th>
+      <th colspan="${instSpan}" style="color:white;text-align:center;font-size:11px;opacity:.5;border-bottom:2px solid rgba(255,255,255,.2);">Instalación</th>
+    </tr>
+    <tr>
+      ${stCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;">${n.split(' ')[0]}</th>`).join('')}
+      ${fidelCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;">${n.split(' ')[0]}</th>`).join('')}
+      ${instCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;opacity:.5;">${n.split(' ')[0]}</th>`).join('')}
+    </tr>
+  </thead>`;
+
+  function buildRow(lbl, stW, fW, indent, bg){
+    let html = `<tr style="${bg}"><td style="${indent}padding-left:${indent?'20px':'10px'};">${indent?'↳ ':''}<strong>${lbl}</strong></td>`;
+    // ST cols
+    stCols.forEach(n=>{ html+=efCell(getTecEf(stW,n), false); });
+    // Fidel cols
+    fidelCols.forEach(()=>{ html+=efCell(fW?fW.efectividad:null, false); });
+    // Instalacion cols
+    instCols.forEach(()=>{ html+=efCell(null, true); });
+    html+='</tr>';
+    return html;
+  }
+
+  let html = '';
+  if(mesFiltro==='todos'){
+    const byMes={};
+    sortedLabels.forEach(lbl=>{
+      const stW=stWeeks.find(w=>w.label===lbl);
+      const fW=fidelWeeks.find(w=>w.label===lbl);
+      const mes=(stW||fW)?.mes||'Sin clasificar';
+      if(!byMes[mes])byMes[mes]=[];byMes[mes].push(lbl);
+    });
+    const mesesSorted=Object.keys(byMes).sort((a,b)=>extractStartDate(byMes[a][0])-extractStartDate(byMes[b][0]));
+    html=headerRow+'<tbody>';
+    mesesSorted.forEach(mes=>{
+      const totalCols = 1+stSpan+fidelSpan+instSpan;
+      html+=`<tr style="background:#1a3a5c !important;"><td colspan="${totalCols}" style="color:white;font-weight:600;background:#1a3a5c;">📁 ${mes}</td></tr>`;
+      byMes[mes].forEach((lbl,i)=>{
+        const stW=stWeeks.find(w=>w.label===lbl);
+        const fW=fidelWeeks.find(w=>w.label===lbl);
+        const bg=i%2===0?'':'background:var(--surface)';
+        html+=buildRow(lbl,stW,fW,true,bg);
+      });
+    });
+  } else {
+    html=headerRow+'<tbody>';
+    sortedLabels.forEach((lbl,i)=>{
+      const stW=stWeeks.find(w=>w.label===lbl);
+      const fW=fidelWeeks.find(w=>w.label===lbl);
+      const bg=i%2===0?'':'background:var(--surface)';
+      html+=buildRow(lbl,stW,fW,false,bg);
+    });
+  }
+  document.getElementById('resumenTabla').innerHTML=html+'</tbody>';
+
+  // ── GRÁFICO ST con checkboxes ──
+  const stColores={'Santiago Munhoz':'#2e6da4','Ariel Sandoval':'#e8a04a','Mauricio Gonzales':'#1a7a56','Gonzalo Rodriguez':'#5340b8','Marcos Martin':'#c0392b'};
+
+  // Render checkboxes
+  const filtrosEl = document.getElementById('stTecFiltros');
+  if(filtrosEl){
+    // Keep existing selection state or default all on
+    const prevState = {};
+    filtrosEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{ prevState[cb.dataset.tec]=cb.checked; });
+    filtrosEl.innerHTML = stCols.map(n=>{
+      const checked = prevState[n]!==undefined ? prevState[n] : true;
+      const col = stColores[n]||'#888';
+      return `<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:3px 10px;">
+        <input type="checkbox" data-tec="${n}" ${checked?'checked':''} onchange="updateSTChart()" style="accent-color:${col};cursor:pointer;"/>
+        <span style="color:var(--text);">${n.split(' ')[0]}</span>
+      </label>`;
+    }).join('');
+  }
+
+  function buildSTChart(labels, stW_map){
+    const filtrosEl2 = document.getElementById('stTecFiltros');
+    const activeNames = stCols.filter(n=>{
+      if(!filtrosEl2) return true;
+      const cb = filtrosEl2.querySelector(`input[data-tec="${n}"]`);
+      return cb ? cb.checked : true;
+    });
+    destroyChart('resumenST');
+    charts['resumenST']=new Chart(document.getElementById('resumenChartST'),{
+      type:'line',data:{labels,datasets:activeNames.map(n=>({
+        label:n,
+        data:labels.map(lbl=>getTecEf(stW_map[lbl],n)),
+        borderColor:stColores[n]||'#888',backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
+      }))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
+        scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{callback:v=>v+'%'}}}}
+    });
+  }
+
+  // Map for quick access
+  const stW_map = {};
+  sortedLabels.forEach(lbl=>{ stW_map[lbl]=stWeeks.find(w=>w.label===lbl); });
+  buildSTChart(sortedLabels, stW_map);
+
+  // Expose updateSTChart globally so checkboxes can call it
+  window.updateSTChart = () => buildSTChart(sortedLabels, stW_map);
+
+  // ── GRÁFICO FIDEL (línea igual que ST) ──
+  destroyChart('resumenFidel');
+  if(fidelWeeks.length){
+    charts['resumenFidel']=new Chart(document.getElementById('resumenChartFidel'),{
+      type:'line',data:{labels:fidelWeeks.map(w=>w.label),datasets:[{
+        label:'Mauricio González',
+        data:fidelWeeks.map(w=>w.efectividad),
+        borderColor:'#1a7a56',backgroundColor:'transparent',tension:.3,pointRadius:5,fill:false,spanGaps:true
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
+        scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{callback:v=>v+'%'}}}}
+    });
+  }
+}
+
+
+// Firebase ready callback
+window.onFirebaseReady=()=>{
+  if(document.getElementById('servtecScreen').style.display!=='none') loadSavedWeeks();
+  if(document.getElementById('fidelizacionScreen').style.display!=='none') fidelLoadSavedWeeks();
+};
 </script>
 </body>
 </html>
