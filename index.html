@@ -26,10 +26,12 @@
   const db = firebase.firestore();
   const DOMINIO_PERMITIDO = 'fullcontrol.com.ar';
 
-  // App Check con reCAPTCHA v3 — iniciar después de que el DOM esté listo
-  window.addEventListener('DOMContentLoaded', () => {
-    const appCheck = firebase.appCheck();
-    appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
+  // App Check con reCAPTCHA v3
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      const appCheck = firebase.appCheck();
+      appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
+    }, 500);
   });
 
   // ── AUTH STATE ──
