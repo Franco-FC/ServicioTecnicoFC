@@ -365,7 +365,7 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
       Guardar en Firebase y ver dashboard
     </button>
-    <div class="status" id="statusMsg"></div>
+    <div class="status" id="document.getElementById('statusMsg')"></div>
     <div id="savedWeeksSection" style="display:none;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.25rem;text-align:left;">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem;">Semanas guardadas en Firebase</div>
       <div id="savedWeeksList"></div>
@@ -545,9 +545,15 @@ function goTo(s){
   if(s==='resumen') loadResumen();
   window.scrollTo(0,0);
 }
-document.getElementById('btnResumen').addEventListener('click', ()=>goTo('resumen'));
-document.getElementById('btnServtec').addEventListener('click', ()=>goTo('servtec'));
-document.getElementById('btnFidelizacion').addEventListener('click', ()=>goTo('fidelizacion'));
+document.addEventListener('DOMContentLoaded', function() {
+  // Home buttons
+  const btnResumen = document.getElementById('btnResumen');
+  const btnServtec = document.getElementById('btnServtec');
+  const btnFidelizacion = document.getElementById('btnFidelizacion');
+  if(btnResumen) btnResumen.addEventListener('click', ()=>goTo('resumen'));
+  if(btnServtec) btnServtec.addEventListener('click', ()=>goTo('servtec'));
+  if(btnFidelizacion) btnFidelizacion.addEventListener('click', ()=>goTo('fidelizacion'));
+});
 function showUpload(){
   document.getElementById('dashboard').style.display='none';
   document.getElementById('evolucionScreen').style.display='none';
@@ -600,22 +606,24 @@ function parseDate(v){
 }
 
 // ── UPLOAD LOGIC ──
-const dropzone=document.getElementById('dropzone');
-const fileInput=document.getElementById('fileInput');
-const btnGenerate=document.getElementById('btnGenerate');
-const statusMsg=document.getElementById('statusMsg');
 let pendingFiles=[];
-
-dropzone.addEventListener('click',()=>fileInput.click());
-dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
-dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
-dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');handleFiles(e.dataTransfer.files);});
-fileInput.addEventListener('change',()=>handleFiles(fileInput.files));
+function initUploadListeners(){
+  const dropzone=document.getElementById('dropzone');
+  const fileInput=document.getElementById('fileInput');
+  if(!dropzone||!fileInput) return;
+  dropzone.addEventListener('click',()=>fileInput.click());
+  dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
+  dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');handleFiles(e.dataTransfer.files);});
+  fileInput.addEventListener('change',()=>handleFiles(fileInput.files));
+}
+document.addEventListener('DOMContentLoaded', initUploadListeners);
 
 function handleFiles(files){
   pendingFiles=[];
   document.getElementById('configRows').innerHTML='';
-  btnGenerate.disabled=true;
+  const btnGenerate=document.getElementById('btnGenerate');
+  if(btnGenerate) btnGenerate.disabled=true;
   if(!files.length) return;
   let loaded=0;
   Array.from(files).forEach((file,i)=>{
@@ -627,15 +635,15 @@ function handleFiles(files){
         const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
         let headerRow=-1;
         for(let j=0;j<raw.length;j++){if(raw[j]&&raw[j].some(v=>v&&String(v).toLowerCase().includes('número'))){headerRow=j;break;}}
-        if(headerRow===-1){statusMsg.className='status err';statusMsg.textContent=`${file.name}: formato no reconocido`;return;}
+        if(headerRow===-1){document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent=`${file.name}: formato no reconocido`;return;}
         const headers=raw[headerRow];
         const rows=raw.slice(headerRow+1).filter(r=>r&&r[0]!=null&&String(r[0]).trim()!=='');
         const df=rows.map(r=>{const obj={};headers.forEach((h,k)=>{if(h)obj[String(h).trim()]=r[k];});return obj;});
         pendingFiles[i]={df,name:file.name};
         renderConfig(i,file.name,df.length);
         loaded++;
-        if(loaded===files.length){btnGenerate.disabled=false;statusMsg.className='status ok';statusMsg.textContent=`✓ ${files.length} archivo(s) listos`;}
-      }catch(err){statusMsg.className='status err';statusMsg.textContent='Error: '+err.message;}
+        if(loaded===files.length){const btnGenerate=document.getElementById('btnGenerate');if(btnGenerate)btnGenerate.disabled=false;document.getElementById('statusMsg').className='status ok';document.getElementById('statusMsg').textContent=`✓ ${files.length} archivo(s) listos`;}
+      }catch(err){document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent='Error: '+err.message;}
     };
     reader.readAsArrayBuffer(file);
   });
@@ -653,16 +661,16 @@ function renderConfig(i,name,count){
 
 btnGenerate.addEventListener('click', async()=>{
   if(!window._fb){
-    statusMsg.className='status';statusMsg.textContent='Conectando con Firebase...';
+    document.getElementById('statusMsg').className='status';document.getElementById('statusMsg').textContent='Conectando con Firebase...';
     await new Promise(resolve=>{
       if(window._fb){resolve();return;}
       window.addEventListener('firebaseReady',resolve,{once:true});
       setTimeout(resolve,8000); // fallback máximo 8 seg
     });
   }
-  if(!window._fb){statusMsg.className='status err';statusMsg.textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';return;}
+  if(!window._fb){document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';return;}
   btnGenerate.disabled=true;
-  statusMsg.className='status';statusMsg.textContent='Guardando en Firebase...';
+  document.getElementById('statusMsg').className='status';document.getElementById('statusMsg').textContent='Guardando en Firebase...';
   try{
     for(let i=0;i<pendingFiles.length;i++){
       if(!pendingFiles[i]) continue;
@@ -673,7 +681,7 @@ btnGenerate.addEventListener('click', async()=>{
       const summary=computeSummary(df,otGen,label);
       await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
     }
-    statusMsg.className='status ok';statusMsg.textContent='✓ Guardado en Firebase correctamente';
+    document.getElementById('statusMsg').className='status ok';document.getElementById('statusMsg').textContent='✓ Guardado en Firebase correctamente';
     pendingFiles=[];
     document.getElementById('configRows').innerHTML='';
     btnGenerate.disabled=true;
@@ -681,13 +689,17 @@ btnGenerate.addEventListener('click', async()=>{
     renderSavedWeeks(weeks);
     if(weeks.length) buildDashboard(weeks[weeks.length-1]);
   }catch(err){
-    statusMsg.className='status err';statusMsg.textContent='Error Firebase: '+err.message;
+    document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent='Error Firebase: '+err.message;
     btnGenerate.disabled=false;
   }
 });
 
-document.getElementById('btnReset').addEventListener('click',showUpload);
-document.getElementById('btnViewEvolucion').addEventListener('click',showEvolucion);
+document.addEventListener('DOMContentLoaded', function(){
+  const btnReset=document.getElementById('btnReset');
+  const btnViewEvolucion=document.getElementById('btnViewEvolucion');
+  if(btnReset) btnReset.addEventListener('click',showUpload);
+  if(btnViewEvolucion) btnViewEvolucion.addEventListener('click',showEvolucion);
+});
 
 async function loadSavedWeeks(){
   if(!window._fb){
