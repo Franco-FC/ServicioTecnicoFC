@@ -48,7 +48,8 @@
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appContainer').style.display = 'block';
       document.getElementById('userEmail').textContent = user.email;
-      window.dispatchEvent(new Event('firebaseReady'));
+      initUploadListeners();
+      setTimeout(() => window.dispatchEvent(new Event('firebaseReady')), 300);
     } else {
       // No autenticado → mostrar login
       document.getElementById('loginScreen').style.display = 'flex';
