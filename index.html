@@ -337,6 +337,8 @@
     </div>
     <div style="position:relative;height:280px;"><canvas id="resumenChartST"></canvas></div>
   </div>
+  <div class="section-label">Tiempo de respuesta · Express</div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1.75rem;" id="resumenBloqueRespuesta"></div>
   <div class="chart-full">
     <h3>% Efectividad · Fidelización</h3>
     <div style="position:relative;height:220px;"><canvas id="resumenChartFidel"></canvas></div>
@@ -409,6 +411,8 @@
     <div class="table-card"><h3>Top 10 tipos de servicio</h3><table class="dt" id="tablaServicios"></table></div>
     <div class="table-card"><h3>OTs por día de semana</h3><table class="dt" id="tablaDias"></table></div>
   </div>
+  <div class="section-label">Tiempo de respuesta · Express</div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1.75rem;" id="bloqueRespuesta"></div>
 </div>
 
 <div id="evolucionScreen">
@@ -622,7 +626,6 @@ function initUploadListeners(){
   dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');handleFiles(e.dataTransfer.files);});
   fileInput.addEventListener('change',()=>handleFiles(fileInput.files));
 }
-document.addEventListener('DOMContentLoaded', initUploadListeners);
 
 function handleFiles(files){
   pendingFiles=[];
@@ -820,7 +823,29 @@ function computeSummary(df,otGen,label){
   const topServicios=Object.entries(srvMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([s,n])=>({s,n}));
   const dayMap={};
   df.forEach(r=>{const d=parseDate(r['Fecha de Creación']);if(d){const dow=d.getDay();dayMap[dow]=(dayMap[dow]||0)+1;}});
-  return{label,otGen,totalOTs:total,sinTec,pct,tecnicos,topServicios,dayMap};
+  // ── TIEMPO DE RESPUESTA EXPRESS ──
+  const SRV_EXPRESS_RESP = ['EXPRESS - 5.FALLA AUTOACTIVACI','EXPRESS - 2. FALTA DE TEST','EXPRESS - 4.FALLA DVR/NVR'];
+  function horasHabiles(inicio, fin){
+    if(!inicio||!fin) return null;
+    const a = inicio instanceof Date ? inicio : new Date(inicio);
+    const b = fin instanceof Date ? fin : new Date(fin);
+    if(isNaN(a)||isNaN(b)||b<a) return null;
+    let total=0, cur=new Date(a);
+    cur.setMinutes(0,0,0);
+    while(cur<b){ if(cur.getDay()!==0&&cur.getDay()!==6) total++; cur=new Date(cur.getTime()+3600000); }
+    return total;
+  }
+  const tiempoRespuesta = SRV_EXPRESS_RESP.map(srv=>{
+    const ots = df.filter(r=>String(r['Servicio']||'').trim()===srv);
+    const datos = ots.map(r=>{
+      const hs = horasHabiles(r['Fecha de Creación'], r['Fecha de la visita']);
+      return hs!=null ? {ot:r['Número'],tecnico:String(r['Tecnico']||'').trim(),hs,ok:hs<=48} : null;
+    }).filter(Boolean);
+    const ok = datos.filter(d=>d.ok).length;
+    const prom = datos.length ? Math.round(datos.reduce((s,d)=>s+d.hs,0)/datos.length) : null;
+    return {srv, total:datos.length, ok, exceden:datos.length-ok, promedio:prom, detalle:datos};
+  });
+  return{label,otGen,totalOTs:total,sinTec,pct,tecnicos,topServicios,dayMap,tiempoRespuesta};
 }
 
 // ── BUILD DASHBOARD ──
@@ -885,6 +910,44 @@ function buildDashboard(w){
   let dHTML='<thead><tr><th>Día</th><th>OTs</th><th>%</th></tr></thead><tbody>';
   DO.forEach(d=>{const n=w.dayMap[d]||0;dHTML+=`<tr><td>${DE[d]}</td><td>${n}</td><td>${((n/total)*100).toFixed(1)}%</td></tr>`;});
   document.getElementById('tablaDias').innerHTML=dHTML+'</tbody>';
+
+  // ── BLOQUE TIEMPO DE RESPUESTA EN DASHBOARD ──
+  if(w.tiempoRespuesta && w.tiempoRespuesta.length){
+    const trEl = document.getElementById('bloqueRespuesta');
+    const SRV_SHORT = {
+      'EXPRESS - 5.FALLA AUTOACTIVACI': 'Falla Autoactivación',
+      'EXPRESS - 2. FALTA DE TEST': 'Falta de Test',
+      'EXPRESS - 4.FALLA DVR/NVR': 'Falla DVR/NVR'
+    };
+    let trHTML = '';
+    w.tiempoRespuesta.forEach(t=>{
+      if(!t.total) return;
+      const pctOk = Math.round((t.ok/t.total)*100);
+      const color = pctOk>=80?'#1a7a56':pctOk>=50?'#1565a8':'#c0392b';
+      const promColor = t.promedio<=48?'#1a7a56':t.promedio<=72?'#1565a8':'#c0392b';
+      trHTML += `
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+          <div style="flex:1;min-width:160px;">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">EXPRESS</div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy);">${SRV_SHORT[t.srv]||t.srv}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t.total} OTs analizadas</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${promColor};">${t.promedio!=null?t.promedio+'hs':'—'}</div>
+            <div style="font-size:10px;color:var(--text-muted);">promedio</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${color};">${pctOk}%</div>
+            <div style="font-size:10px;color:var(--text-muted);">≤ 48hs háb.</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-size:16px;font-weight:700;color:#1a7a56;">${t.ok} ✓</div>
+            <div style="font-size:16px;font-weight:700;color:#c0392b;">${t.exceden} ✗</div>
+          </div>
+        </div>`;
+    });
+    if(trEl) trEl.innerHTML = trHTML || '<p style="color:var(--text-muted);font-size:13px;">Sin OTs Express en este período</p>';
+  }
 
   document.getElementById('btnDownload').onclick=()=>{
     const wb=XLSX.utils.book_new();
@@ -1557,7 +1620,60 @@ function renderResumen(){
       const cb = filtrosEl2.querySelector(`input[data-tec="${n}"]`);
       return cb ? cb.checked : true;
     });
-    destroyChart('resumenST');
+    // ── BLOQUE TIEMPO DE RESPUESTA EN RESUMEN ──
+  const resumenTR = document.getElementById('resumenBloqueRespuesta');
+  if(resumenTR){
+    const SRV_EXPRESS_RESP = ['EXPRESS - 5.FALLA AUTOACTIVACI','EXPRESS - 2. FALTA DE TEST','EXPRESS - 4.FALLA DVR/NVR'];
+    const SRV_SHORT = {
+      'EXPRESS - 5.FALLA AUTOACTIVACI': 'Falla Autoactivación',
+      'EXPRESS - 2. FALTA DE TEST': 'Falta de Test',
+      'EXPRESS - 4.FALLA DVR/NVR': 'Falla DVR/NVR'
+    };
+    // Aggregate across all filtered ST weeks
+    const agregado = SRV_EXPRESS_RESP.map(srv=>{
+      let totalOts=0, totalOk=0, totalHs=0, count=0;
+      stWeeks.forEach(w=>{
+        if(!w.tiempoRespuesta) return;
+        const t = w.tiempoRespuesta.find(r=>r.srv===srv);
+        if(!t) return;
+        totalOts += t.total;
+        totalOk  += t.ok;
+        if(t.promedio!=null){ totalHs+=t.promedio; count++; }
+      });
+      const prom = count ? Math.round(totalHs/count) : null;
+      const pctOk = totalOts ? Math.round((totalOk/totalOts)*100) : null;
+      return {srv, total:totalOts, ok:totalOk, exceden:totalOts-totalOk, promedio:prom, pctOk};
+    });
+    let trHTML = '';
+    agregado.forEach(t=>{
+      if(!t.total) return;
+      const color = t.pctOk>=80?'#1a7a56':t.pctOk>=50?'#1565a8':'#c0392b';
+      const promColor = t.promedio<=48?'#1a7a56':t.promedio<=72?'#1565a8':'#c0392b';
+      trHTML += `
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+          <div style="flex:1;min-width:160px;">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">EXPRESS</div>
+            <div style="font-size:13px;font-weight:600;color:var(--navy);">${SRV_SHORT[t.srv]||t.srv}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t.total} OTs analizadas</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${promColor};">${t.promedio!=null?t.promedio+'hs':'—'}</div>
+            <div style="font-size:10px;color:var(--text-muted);">promedio</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${color};">${t.pctOk}%</div>
+            <div style="font-size:10px;color:var(--text-muted);">≤ 48hs háb.</div>
+          </div>
+          <div style="text-align:center;min-width:80px;">
+            <div style="font-size:16px;font-weight:700;color:#1a7a56;">${t.ok} ✓</div>
+            <div style="font-size:16px;font-weight:700;color:#c0392b;">${t.exceden} ✗</div>
+          </div>
+        </div>`;
+    });
+    resumenTR.innerHTML = trHTML || '<p style="color:var(--text-muted);font-size:13px;">Sin OTs Express en el período seleccionado</p>';
+  }
+
+  destroyChart('resumenST');
     charts['resumenST']=new Chart(document.getElementById('resumenChartST'),{
       type:'line',data:{labels,datasets:activeNames.map(n=>({
         label:n,
@@ -1595,11 +1711,7 @@ function renderResumen(){
 }
 
 
-// Firebase ready callback
-window.onFirebaseReady=()=>{
-  if(document.getElementById('servtecScreen').style.display!=='none') loadSavedWeeks();
-  if(document.getElementById('fidelizacionScreen').style.display!=='none') fidelLoadSavedWeeks();
-};
+// Auth handles initialization via firebaseReady event
 </script>
 </div><!-- end appContainer -->
 </body>
