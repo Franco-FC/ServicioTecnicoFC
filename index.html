@@ -679,19 +679,19 @@ document.addEventListener('DOMContentLoaded', function(){
   const btnGenerate = document.getElementById('btnGenerate');
   if(!btnGenerate) return;
   btnGenerate.addEventListener('click', async()=>{
-    const statusMsg = document.getElementById('statusMsg');
+    const sMsg = ()=>document.getElementById('statusMsg');
     const btnGen = document.getElementById('btnGenerate');
     if(!window._fb){
-      statusMsg.className='status';statusMsg.textContent='Conectando con Firebase...';
+      if(sMsg()){sMsg().className='status';sMsg().textContent='Conectando con Firebase...';}
       await new Promise(resolve=>{
         if(window._fb){resolve();return;}
         window.addEventListener('firebaseReady',resolve,{once:true});
         setTimeout(resolve,8000);
       });
     }
-    if(!window._fb){statusMsg.className='status err';statusMsg.textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';return;}
-    btnGen.disabled=true;
-    statusMsg.className='status';statusMsg.textContent='Guardando en Firebase...';
+    if(!window._fb){if(sMsg()){sMsg().className='status err';sMsg().textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';}return;}
+    if(btnGen) btnGen.disabled=true;
+    if(sMsg()){sMsg().className='status';sMsg().textContent='Guardando en Firebase...';}
     try{
       for(let i=0;i<pendingFiles.length;i++){
         if(!pendingFiles[i]) continue;
@@ -702,16 +702,16 @@ document.addEventListener('DOMContentLoaded', function(){
         const summary=computeSummary(df,otGen,label);
         await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
       }
-      statusMsg.className='status ok';statusMsg.textContent='✓ Guardado en Firebase correctamente';
+      if(sMsg()){sMsg().className='status ok';sMsg().textContent='✓ Guardado en Firebase correctamente';}
       pendingFiles=[];
       document.getElementById('configRows').innerHTML='';
-      btnGen.disabled=true;
+      if(btnGen) btnGen.disabled=true;
       const weeks=await window._fb.getWeeks();
       renderSavedWeeks(weeks);
       if(weeks.length) buildDashboard(weeks[weeks.length-1]);
     }catch(err){
-      statusMsg.className='status err';statusMsg.textContent='Error Firebase: '+err.message;
-      btnGen.disabled=false;
+      if(sMsg()){sMsg().className='status err';sMsg().textContent='Error Firebase: '+err.message;}
+      if(btnGen) btnGen.disabled=false;
     }
   });
 });
