@@ -650,8 +650,16 @@ function handleFiles(files){
         pendingFiles[i]={df,name:file.name};
         renderConfig(i,file.name,df.length);
         loaded++;
-        if(loaded===files.length){const btnGenerate=document.getElementById('btnGenerate');if(btnGenerate)btnGenerate.disabled=false;document.getElementById('statusMsg').className='status ok';document.getElementById('statusMsg').textContent=`✓ ${files.length} archivo(s) listos`;}
-      }catch(err){document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent='Error: '+err.message;}
+        if(loaded===files.length){
+          const btnGen=document.getElementById('btnGenerate');
+          const sMsg=document.getElementById('statusMsg');
+          if(btnGen) btnGen.disabled=false;
+          if(sMsg){sMsg.className='status ok';sMsg.textContent=`✓ ${files.length} archivo(s) listos`;}
+        }
+      }catch(err){
+        const sMsg=document.getElementById('statusMsg');
+        if(sMsg){sMsg.className='status err';sMsg.textContent='Error: '+err.message;}
+      }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -667,39 +675,45 @@ function renderConfig(i,name,count){
   document.getElementById('configRows').appendChild(div);
 }
 
-btnGenerate.addEventListener('click', async()=>{
-  if(!window._fb){
-    document.getElementById('statusMsg').className='status';document.getElementById('statusMsg').textContent='Conectando con Firebase...';
-    await new Promise(resolve=>{
-      if(window._fb){resolve();return;}
-      window.addEventListener('firebaseReady',resolve,{once:true});
-      setTimeout(resolve,8000); // fallback máximo 8 seg
-    });
-  }
-  if(!window._fb){document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';return;}
-  btnGenerate.disabled=true;
-  document.getElementById('statusMsg').className='status';document.getElementById('statusMsg').textContent='Guardando en Firebase...';
-  try{
-    for(let i=0;i<pendingFiles.length;i++){
-      if(!pendingFiles[i]) continue;
-      const{df}=pendingFiles[i];
-      const otGen=parseInt(document.getElementById(`otGen_${i}`)?.value)||df.length;
-      const label=document.getElementById(`label_${i}`)?.value||`Semana ${i+1}`;
-      const mes=document.getElementById(`mes_${i}`)?.value||'Sin clasificar';
-      const summary=computeSummary(df,otGen,label);
-      await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
+document.addEventListener('DOMContentLoaded', function(){
+  const btnGenerate = document.getElementById('btnGenerate');
+  if(!btnGenerate) return;
+  btnGenerate.addEventListener('click', async()=>{
+    const statusMsg = document.getElementById('statusMsg');
+    const btnGen = document.getElementById('btnGenerate');
+    if(!window._fb){
+      statusMsg.className='status';statusMsg.textContent='Conectando con Firebase...';
+      await new Promise(resolve=>{
+        if(window._fb){resolve();return;}
+        window.addEventListener('firebaseReady',resolve,{once:true});
+        setTimeout(resolve,8000);
+      });
     }
-    document.getElementById('statusMsg').className='status ok';document.getElementById('statusMsg').textContent='✓ Guardado en Firebase correctamente';
-    pendingFiles=[];
-    document.getElementById('configRows').innerHTML='';
-    btnGenerate.disabled=true;
-    const weeks=await window._fb.getWeeks();
-    renderSavedWeeks(weeks);
-    if(weeks.length) buildDashboard(weeks[weeks.length-1]);
-  }catch(err){
-    document.getElementById('statusMsg').className='status err';document.getElementById('statusMsg').textContent='Error Firebase: '+err.message;
-    btnGenerate.disabled=false;
-  }
+    if(!window._fb){statusMsg.className='status err';statusMsg.textContent='No se pudo conectar con Firebase. Verificá tu conexión a internet.';return;}
+    btnGen.disabled=true;
+    statusMsg.className='status';statusMsg.textContent='Guardando en Firebase...';
+    try{
+      for(let i=0;i<pendingFiles.length;i++){
+        if(!pendingFiles[i]) continue;
+        const{df}=pendingFiles[i];
+        const otGen=parseInt(document.getElementById(`otGen_${i}`)?.value)||df.length;
+        const label=document.getElementById(`label_${i}`)?.value||`Semana ${i+1}`;
+        const mes=document.getElementById(`mes_${i}`)?.value||'Sin clasificar';
+        const summary=computeSummary(df,otGen,label);
+        await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
+      }
+      statusMsg.className='status ok';statusMsg.textContent='✓ Guardado en Firebase correctamente';
+      pendingFiles=[];
+      document.getElementById('configRows').innerHTML='';
+      btnGen.disabled=true;
+      const weeks=await window._fb.getWeeks();
+      renderSavedWeeks(weeks);
+      if(weeks.length) buildDashboard(weeks[weeks.length-1]);
+    }catch(err){
+      statusMsg.className='status err';statusMsg.textContent='Error Firebase: '+err.message;
+      btnGen.disabled=false;
+    }
+  });
 });
 
 document.addEventListener('DOMContentLoaded', function(){
