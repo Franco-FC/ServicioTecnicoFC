@@ -1832,7 +1832,7 @@ function renderKpis(){
     tHTML=`<thead><tr><th>Mes / Semana</th>${SRV_EXPRESS_KPI.map(s=>`<th style="color:white;font-size:10px;">${SRV_SHORT_KPI[s]}<br><span style="font-weight:400;opacity:.7;">% ≤48hs / prom</span></th>`).join('')}</tr></thead><tbody>`;
     mesesSorted.forEach(m=>{
       const mW=byMes[m];
-      tHTML+=`<tr style="background:#1a3a5c;"><td colspan="${1+SRV_EXPRESS_KPI.length}" style="color:white;font-weight:600;">📁 ${m}</td></tr>`;
+      tHTML+=`<tr style="background:#1a3a5c !important;"><td colspan="${1+SRV_EXPRESS_KPI.length}" style="color:white;font-weight:600;background:#1a3a5c;">📁 ${m}</td></tr>`;
       mW.forEach((w,i)=>{
         const bg=i%2===0?'':'background:var(--surface)';
         tHTML+=`<tr style="${bg}"><td style="padding-left:20px;">↳ ${w.label}</td>`;
