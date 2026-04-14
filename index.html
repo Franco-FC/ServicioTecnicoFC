@@ -998,12 +998,12 @@ function buildDashboard(w){
             <div style="font-size:13px;font-weight:600;color:var(--navy);">${SRV_SHORT[t.srv]||t.srv}</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t.total} OTs analizadas</div>
           </div>
-          <div style="text-align:center;min-width:80px;">
+          <div style="text-align:center;min-width:80px;cursor:help;" title="🟢 ≤ 48hs hábiles  🟡 entre 48hs y 72hs  🔴 más de 72hs">
             <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${promColor};">${t.promedio!=null?t.promedio+'hs':'—'}</div>
             <div style="font-size:10px;color:var(--text-muted);">promedio</div>
           </div>
-          <div style="text-align:center;min-width:80px;cursor:help;" title="🟢 Verde: ≥80% en tiempo  🟡 Amarillo: 50–79%  🔴 Rojo: <50%">
-            <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${color};">${pctOk}%</div>
+          <div style="text-align:center;min-width:80px;cursor:help;" title="Promedio hs: 🟢 ≤48hs  🟡 48–72hs  🔴 >72hs">
+            <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:var(--navy);">${pctOk}%</div>
             <div style="font-size:10px;color:var(--text-muted);">≤ 48hs háb.</div>
           </div>
           <div style="text-align:center;min-width:80px;">
@@ -1787,12 +1787,12 @@ function renderKpis(){
           <div style="font-size:13px;font-weight:600;color:var(--navy);">${SRV_SHORT_KPI[t.srv]||t.srv}</div>
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${t.total} OTs analizadas</div>
         </div>
-        <div style="text-align:center;min-width:80px;">
+        <div style="text-align:center;min-width:80px;cursor:help;" title="🟢 ≤ 48hs hábiles  🟡 entre 48hs y 72hs  🔴 más de 72hs">
           <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${promColor};">${t.promedio!=null?t.promedio+'hs':'—'}</div>
           <div style="font-size:10px;color:var(--text-muted);">promedio</div>
         </div>
-        <div style="text-align:center;min-width:80px;cursor:help;" title="🟢 Verde: ≥80% en tiempo  🟡 Amarillo: 50–79%  🔴 Rojo: <50%">
-          <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:${color};">${t.pctOk!=null?t.pctOk+'%':'—'}</div>
+        <div style="text-align:center;min-width:80px;cursor:help;" title="Promedio hs: 🟢 ≤48hs  🟡 48–72hs  🔴 >72hs">
+          <div style="font-size:22px;font-weight:800;font-family:'Syne',sans-serif;color:var(--navy);">${t.pctOk!=null?t.pctOk+'%':'—'}</div>
           <div style="font-size:10px;color:var(--text-muted);">≤ 48hs háb.</div>
         </div>
         <div style="text-align:center;min-width:80px;">
@@ -1841,13 +1841,14 @@ function renderKpis(){
           if(!t||!t.total){tHTML+=`<td style="text-align:center;color:var(--text-muted);">—</td>`;return;}
           const pct=Math.round((t.ok/t.total)*100);
           const c=pct>=80?'#1a7a56':pct>=50?'#b5870a':'#c0392b';
-          tHTML+=`<td style="text-align:center;"><span style="font-weight:600;color:${c};">${pct}%</span> <span style="font-size:10px;color:var(--text-muted);">${t.promedio!=null?'/ '+t.promedio+'hs':''}</span></td>`;
+          const pc=t.promedio<=48?'#1a7a56':t.promedio<=72?'#b5870a':'#c0392b';
+          tHTML+=`<td style="text-align:center;padding:6px 8px;"><div style="font-size:15px;font-weight:800;color:var(--navy);">${pct}%</div><div style="font-size:12px;font-weight:600;color:${pc};">${t.promedio!=null?t.promedio+'hs':'—'}</div></td>`;
         });
         tHTML+=`</tr>`;
       });
     });
   } else {
-    tHTML=`<thead><tr><th>Semana</th>${SRV_EXPRESS_KPI.map(s=>`<th style="color:white;font-size:10px;">${SRV_SHORT_KPI[s]}<br><span style="font-weight:400;opacity:.7;">% ≤48hs / prom</span></th>`).join('')}</tr></thead><tbody>`;
+    tHTML=`<thead><tr><th>Semana</th>${SRV_EXPRESS_KPI.map(s=>`<th style="color:white;font-size:10px;">${SRV_SHORT_KPI[s]}<br><span style="font-weight:400;opacity:.7;">% cumplido / prom hs</span></th>`).join('')}</tr></thead><tbody>`;
     weeks.forEach((w,i)=>{
       const bg=i%2===0?'':'background:var(--surface)';
       tHTML+=`<tr style="${bg}"><td><strong>${w.label}</strong></td>`;
@@ -1856,7 +1857,8 @@ function renderKpis(){
         if(!t||!t.total){tHTML+=`<td style="text-align:center;color:var(--text-muted);">—</td>`;return;}
         const pct=Math.round((t.ok/t.total)*100);
         const c=pct>=80?'#1a7a56':pct>=50?'#b5870a':'#c0392b';
-        tHTML+=`<td style="text-align:center;"><span style="font-weight:600;color:${c};">${pct}%</span> <span style="font-size:10px;color:var(--text-muted);">${t.promedio!=null?'/ '+t.promedio+'hs':''}</span></td>`;
+        const pc=t.promedio<=48?'#1a7a56':t.promedio<=72?'#b5870a':'#c0392b';
+        tHTML+=`<td style="text-align:center;padding:6px 8px;"><div style="font-size:15px;font-weight:800;color:var(--navy);">${pct}%</div><div style="font-size:12px;font-weight:600;color:${pc};">${t.promedio!=null?t.promedio+'hs':'—'}</div></td>`;
       });
       tHTML+=`</tr>`;
     });
