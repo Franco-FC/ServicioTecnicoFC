@@ -602,7 +602,12 @@ function goTo(s){
   document.getElementById('resumenScreen').style.display=s==='resumen'?'block':'none';
   document.getElementById('kpisScreen').style.display=s==='kpis'?'block':'none';
   document.getElementById('vehiculosScreen').style.display=s==='vehiculos'?'block':'none';
-  if(s==='servtec') loadSavedWeeks();
+  if(s==='servtec'){
+    document.getElementById('uploadScreen').style.display='flex';
+    document.getElementById('dashboard').style.display='none';
+    document.getElementById('evolucionScreen').style.display='none';
+    loadSavedWeeks();
+  }
   if(s==='fidelizacion'){
     document.getElementById('fidelUploadScreen').style.display='flex';
     document.getElementById('fidelDashboard').style.display='none';
@@ -614,6 +619,7 @@ function goTo(s){
   if(s==='vehiculos'){
     document.getElementById('vehiculosUploadScreen').style.display='flex';
     document.getElementById('vehiculosDashboard').style.display='none';
+    document.getElementById('vehiculosEvolucionScreen').style.display='none';
     vehLoadSaved();
   }
   window.scrollTo(0,0);
@@ -1908,10 +1914,8 @@ function vehInitListeners(){
   dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');vehHandleFile(e.dataTransfer.files[0]);});
   fileInput.addEventListener('change',()=>vehHandleFile(fileInput.files[0]));
 
-  document.getElementById('vehBtnVolver')?.addEventListener('click',()=>{
-    document.getElementById('vehiculosUploadScreen').style.display='flex';
-    document.getElementById('vehiculosDashboard').style.display='none';
-  });
+  document.getElementById('vehBtnVolver')?.addEventListener('click', vehShowUpload);
+  document.getElementById('vehBtnEvolucion')?.addEventListener('click', vehShowEvolucion);
 
   document.getElementById('vehBtnGuardar')?.addEventListener('click', async()=>{
     if(!_vehPendingData) return;
@@ -2091,6 +2095,121 @@ function vehBuildDashboard(d){
   document.getElementById('vehTabla').innerHTML=tHTML+'</tbody>';
 }
 
+
+function vehShowUpload(){
+  document.getElementById('vehiculosUploadScreen').style.display='flex';
+  document.getElementById('vehiculosDashboard').style.display='none';
+  document.getElementById('vehiculosEvolucionScreen').style.display='none';
+}
+
+function vehShowEvolucion(){
+  document.getElementById('vehiculosDashboard').style.display='none';
+  document.getElementById('vehiculosUploadScreen').style.display='none';
+  document.getElementById('vehiculosEvolucionScreen').style.display='block';
+  vehRenderEvolucion('todos');
+}
+
+let _vehEvolMes = 'todos';
+
+function vehRenderEvolucion(mes){
+  _vehEvolMes = mes;
+  const docs = _vehAllDocs;
+  if(!docs.length) return;
+
+  // Build mes tabs
+  const meses = [...new Set(docs.map(d=>d.mes||'Sin clasificar'))].sort((a,b)=>
+    Math.min(...docs.filter(d=>(d.mes||'Sin clasificar')===a).map(d=>d.timestamp||0)) -
+    Math.min(...docs.filter(d=>(d.mes||'Sin clasificar')===b).map(d=>d.timestamp||0))
+  );
+  const tabsEl = document.getElementById('vehEvolMesTabs');
+  if(tabsEl){
+    tabsEl.innerHTML = ['todos',...meses].map(m=>`
+      <button onclick="vehRenderEvolucion('${m}')"
+        style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);font-size:12px;
+        font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;
+        background:${m===mes?'var(--navy)':'var(--white)'};
+        color:${m===mes?'white':'var(--text)'};">
+        ${m==='todos'?'📊 Todos los meses':'📁 '+m}
+      </button>`).join('');
+  }
+
+  const filtered = mes==='todos' ? docs : docs.filter(d=>(d.mes||'Sin clasificar')===mes);
+  const labels = filtered.map(d=>d.mes||'Sin clasificar');
+  document.getElementById('vehEvolBadge').textContent = mes==='todos'?'Todos los meses':mes;
+
+  // Combustible chart
+  destroyChart('vehCombust');
+  charts['vehCombust'] = new Chart(document.getElementById('vehChartCombust'),{
+    type:'bar',
+    data:{labels, datasets:[{
+      label:'Combustible (L)',
+      data:filtered.map(d=>{
+        const vs=d.vehiculos||[];
+        return parseFloat(vs.reduce((s,v)=>s+(parseFloat(v['Consumo de combustible'])||0),0).toFixed(2));
+      }),
+      backgroundColor:'#2e6da4', borderRadius:4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true}}}
+  });
+
+  // Observaciones chart
+  destroyChart('vehObs');
+  charts['vehObs'] = new Chart(document.getElementById('vehChartObs'),{
+    type:'bar',
+    data:{labels, datasets:[{
+      label:'Con observaciones',
+      data:filtered.map(d=>{
+        const vs=d.vehiculos||[];
+        return vs.filter(v=>Object.entries(v).some(([k,val])=>{
+          if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
+          const s=String(val||'').trim().toLowerCase();
+          return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
+        })).length;
+      }),
+      backgroundColor: filtered.map(d=>{
+        const vs=d.vehiculos||[];
+        const obs=vs.filter(v=>Object.entries(v).some(([k,val])=>{
+          if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
+          const s=String(val||'').trim().toLowerCase();
+          return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
+        })).length;
+        return obs===0?'#1a7a56':obs<=2?'#b5870a':'#c0392b';
+      }),
+      borderRadius:4
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{stepSize:1}}}}
+  });
+
+  // Tabla historial por patente
+  // Get all unique patentes
+  const patentes = [...new Set(filtered.flatMap(d=>(d.vehiculos||[]).map(v=>v['Patente']||'—')))].filter(p=>p!=='—');
+  let tHTML = `<thead><tr><th>Mes</th>${patentes.map(p=>`<th style="color:white;">${p}</th>`).join('')}</tr></thead><tbody>`;
+  filtered.forEach((d,i)=>{
+    const bg = i%2===0?'':'background:var(--surface)';
+    tHTML+=`<tr style="${bg}"><td><strong>${d.mes||'—'}</strong></td>`;
+    patentes.forEach(pat=>{
+      const v=(d.vehiculos||[]).find(x=>x['Patente']===pat);
+      if(!v){tHTML+=`<td style="text-align:center;color:var(--text-muted);">—</td>`;return;}
+      const hasObs=Object.entries(v).some(([k,val])=>{
+        if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
+        const s=String(val||'').trim().toLowerCase();
+        return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
+      });
+      const km=(v['Kilometraje Actual']||'').toLocaleString?.('es-AR')||v['Kilometraje Actual']||'—';
+      const comb=parseFloat(v['Consumo de combustible'])||0;
+      tHTML+=`<td style="text-align:center;padding:4px 8px;">
+        <div style="font-size:11px;color:var(--text-muted);">${km} km</div>
+        <div style="font-size:11px;color:#2e6da4;">${comb.toFixed(2)} L</div>
+        ${hasObs?'<div style="font-size:10px;color:#b5870a;font-weight:600;">⚠ Obs.</div>':'<div style="font-size:10px;color:#1a7a56;">✔</div>'}
+      </td>`;
+    });
+    tHTML+=`</tr>`;
+  });
+  document.getElementById('vehTablaEvol').innerHTML=tHTML+'</tbody>';
+}
+
 document.addEventListener('DOMContentLoaded', vehInitListeners);
 
 function vehCelda(val){
@@ -2104,165 +2223,6 @@ function vehCelda(val){
   return `<td style="text-align:center;color:#b5870a;font-weight:600;font-size:11px;">${s}</td>`;
 }
 
-function vehInitListeners(){
-  const dropzone = document.getElementById('vehDropzone');
-  const fileInput = document.getElementById('vehFileInput');
-  if(!dropzone||!fileInput) return;
-  dropzone.addEventListener('click',()=>fileInput.click());
-  dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
-  dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
-  dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');vehHandleFile(e.dataTransfer.files[0]);});
-  fileInput.addEventListener('change',()=>vehHandleFile(fileInput.files[0]));
-
-  document.getElementById('vehBtnVolver')?.addEventListener('click',()=>{
-    document.getElementById('vehiculosUploadScreen').style.display='flex';
-    document.getElementById('vehiculosDashboard').style.display='none';
-  });
-
-  document.getElementById('vehBtnGuardar')?.addEventListener('click', async()=>{
-    if(!_vehPendingData) return;
-    const sMsg = document.getElementById('vehStatusMsg');
-    const mesVal = document.getElementById('vehMesInput')?.value||'Sin clasificar';
-    if(sMsg){sMsg.className='status';sMsg.textContent='Guardando...';}
-    try{
-      await window._fb.saveVehiculo({..._vehPendingData, mes:mesVal, timestamp:Date.now()});
-      if(sMsg){sMsg.className='status ok';sMsg.textContent='✓ Guardado correctamente';}
-      _vehPendingData=null;
-      document.getElementById('vehConfigRow').innerHTML='';
-      document.getElementById('vehBtnGuardar').disabled=true;
-      vehLoadSaved();
-    }catch(e){
-      if(sMsg){sMsg.className='status err';sMsg.textContent='Error: '+e.message;}
-    }
-  });
-}
-
-function vehHandleFile(file){
-  if(!file) return;
-  const reader = new FileReader();
-  const sMsg = document.getElementById('vehStatusMsg');
-  reader.onload = e=>{
-    try{
-      const wb = XLSX.read(e.target.result,{type:'array'});
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-      const headers = raw[0].map(h=>h?String(h).trim():'');
-      const rows = raw.slice(1).filter(r=>r&&r[0]!=null&&String(r[0]).trim()!=='');
-      const vehiculos = rows.map(r=>{
-        const obj={};
-        headers.forEach((h,i)=>{if(h) obj[h]=r[i]!=null?r[i]:null;});
-        return obj;
-      });
-      _vehPendingData = {vehiculos, totalVehiculos:vehiculos.length};
-      // Render config row
-      document.getElementById('vehConfigRow').innerHTML=`
-        <div class="file-item">
-          <span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${vehiculos.length} vehículos)</span></span>
-          <label>Mes/Año&nbsp;</label><input type="text" id="vehMesInput" placeholder="ej: Marzo 2026" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;" />
-        </div>`;
-      document.getElementById('vehBtnGuardar').disabled=false;
-      if(sMsg){sMsg.className='status ok';sMsg.textContent=`✓ ${vehiculos.length} vehículos listos`;}
-    }catch(err){
-      if(sMsg){sMsg.className='status err';sMsg.textContent='Error al leer el archivo: '+err.message;}
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-async function vehLoadSaved(){
-  if(!window._fb){ window.addEventListener('firebaseReady',vehLoadSaved,{once:true}); return; }
-  try{
-    const docs = await window._fb.getVehiculos();
-    const section = document.getElementById('vehSavedSection');
-    const list = document.getElementById('vehSavedList');
-    if(!docs.length){ if(section) section.style.display='none'; return; }
-    if(section) section.style.display='block';
-    // Group by mes
-    const byMes={};
-    docs.forEach(d=>{const m=d.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(d);});
-    const mesesOrdenados=Object.keys(byMes).reverse();
-    list.innerHTML='';
-    mesesOrdenados.forEach(mes=>{
-      const fId=`veh-folder-${mes.replace(/\s+/g,'-')}`;
-      const folder=document.createElement('div');
-      folder.style.cssText='margin-bottom:4px;';
-      folder.innerHTML=`
-        <div onclick="toggleFolder('${fId}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--navy);border-radius:8px;cursor:pointer;">
-          <span id="${fId}-icon" style="font-size:13px;">📁</span>
-          <span style="flex:1;font-size:13px;font-weight:600;color:white;">${mes}</span>
-          <span style="font-size:11px;color:rgba(255,255,255,.5);">${byMes[mes].length} archivo(s)</span>
-          <span id="${fId}-arrow" style="color:rgba(255,255,255,.5);font-size:11px;">▾</span>
-        </div>
-        <div id="${fId}" style="padding-left:12px;margin-top:4px;">
-          ${byMes[mes].map(d=>`
-            <div class="saved-week-item" style="margin-bottom:4px;">
-              <div style="flex:1">
-                <div class="saved-week-label">🚗 ${d.mes||'Sin clasificar'}</div>
-                <div class="saved-week-sub">${d.totalVehiculos} vehículos</div>
-              </div>
-              <button class="btn-view-week" onclick='vehBuildDashboard(${JSON.stringify(d).replace(/'/g,"&#39;")})'>Ver →</button>
-              <button class="btn-del-week" onclick='vehDelete("${d.id}")'>✕</button>
-            </div>`).join('')}
-        </div>`;
-      list.appendChild(folder);
-    });
-    // Auto-show last
-    if(docs.length) vehBuildDashboard(docs[docs.length-1]);
-  }catch(e){ console.error(e); }
-}
-
-async function vehDelete(id){
-  if(!confirm('¿Eliminar este registro?')) return;
-  await window._fb.deleteVehiculo(id);
-  vehLoadSaved();
-}
-
-function vehBuildDashboard(d){
-  document.getElementById('vehiculosUploadScreen').style.display='none';
-  document.getElementById('vehiculosDashboard').style.display='block';
-  document.getElementById('vehPeriod').textContent=d.mes||'Sin clasificar';
-
-  // KPIs
-  const vehiculos = d.vehiculos||[];
-  const activos = vehiculos.filter(v=>String(v['Patente']||'').toLowerCase()!=='kymco'||String(Object.values(v)[1]||'').toLowerCase()!=='sin uso');
-  const conObs = vehiculos.filter(v=>{
-    return Object.entries(v).some(([k,val])=>{
-      if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
-      const s=String(val||'').trim().toLowerCase();
-      return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—';
-    });
-  });
-  const kmTotal = vehiculos.reduce((s,v)=>s+(parseFloat(v['Kilometraje Actual'])||0),0);
-  const combustTotal = vehiculos.reduce((s,v)=>s+(parseFloat(v['Consumo de combustible'])||0),0);
-  document.getElementById('vehKpis').innerHTML=[
-    {cls:'navy',label:'Vehículos en flota',value:vehiculos.length,sub:'total registrados'},
-    {cls:'green',label:'Sin observaciones',value:vehiculos.length-conObs.length,sub:'en condiciones'},
-    {cls:'purple',label:'Con observaciones',value:conObs.length,sub:'requieren atención'},
-    {cls:'teal',label:'Combustible total',value:combustTotal.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})+' L',sub:'consumo del período'},
-  ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
-
-  // Tabla
-  let tHTML=`<thead><tr>${VEH_COLS_SHORT.map((c,i)=>`<th style="white-space:nowrap;">${c}</th>`).join('')}</tr></thead><tbody>`;
-  vehiculos.forEach((v,i)=>{
-    const bg=i%2===0?'':'background:var(--surface)';
-    // Check if has observations
-    const hasObs=Object.entries(v).some(([k,val])=>{
-      if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
-      const s=String(val||'').trim().toLowerCase();
-      return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—';
-    });
-    const rowStyle=hasObs?`background:#fff8e6;`:`${bg}`;
-    tHTML+=`<tr style="${rowStyle}">`;
-    VEH_COLS.forEach(col=>{
-      if(col==='Patente') tHTML+=`<td><strong>${v[col]||'—'}</strong></td>`;
-      else tHTML+=vehCelda(v[col]);
-    });
-    tHTML+=`</tr>`;
-  });
-  document.getElementById('vehTabla').innerHTML=tHTML+'</tbody>';
-}
-
-document.addEventListener('DOMContentLoaded', vehInitListeners);
 
 // Auth handles initialization via firebaseReady event
 </script>
@@ -2310,6 +2270,7 @@ document.addEventListener('DOMContentLoaded', vehInitListeners);
     </div>
     <div class="dash-actions">
       <button class="btn-secondary" id="vehBtnVolver">← Cargar otro mes</button>
+      <button class="btn-secondary" id="vehBtnEvolucion">📈 Ver evolución</button>
     </div>
   </div>
   <div class="section-label">Estado de la flota</div>
@@ -2319,6 +2280,39 @@ document.addEventListener('DOMContentLoaded', vehInitListeners);
     <table class="dt" id="vehTabla" style="min-width:900px;"></table>
   </div>
 </div>
+
+<!-- VEHÍCULOS EVOLUCIÓN -->
+<div id="vehiculosEvolucionScreen" style="display:none;padding:1.75rem 2rem 3rem;max-width:1200px;margin:0 auto;">
+  <div class="dash-header">
+    <div>
+      <h1>Evolución · Vehículos</h1>
+      <span class="period-badge" id="vehEvolBadge">Todos los meses</span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" onclick="vehShowUpload()">← Volver</button>
+    </div>
+  </div>
+  <div style="margin-bottom:1.5rem;">
+    <div class="section-label">Filtrar por período</div>
+    <div id="vehEvolMesTabs" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+  <div class="section-label">Combustible por mes</div>
+  <div class="chart-full">
+    <h3>Consumo de combustible mensual (L)</h3>
+    <div style="position:relative;height:260px;"><canvas id="vehChartCombust"></canvas></div>
+  </div>
+  <div class="section-label">Observaciones por mes</div>
+  <div class="chart-full">
+    <h3>Vehículos con observaciones</h3>
+    <div style="position:relative;height:220px;"><canvas id="vehChartObs"></canvas></div>
+  </div>
+  <div class="section-label">Comparativa mensual</div>
+  <div class="table-card-full" style="overflow-x:auto;">
+    <h3>Historial por vehículo</h3>
+    <table class="dt" id="vehTablaEvol" style="min-width:700px;"></table>
+  </div>
+</div>
+
 </div>
 <!-- FIN VEHÍCULOS -->
 
