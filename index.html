@@ -1885,6 +1885,213 @@ function renderKpis(){
 const VEH_COLS = ['Patente','Kilometraje Actual','¿Uso correcto?','¿Nuevos Choques?','Excesos de Velocidad','Multas','Control mensual','Limpieza','Matafuego','Funcionam gps','Consumo de combustible'];
 const VEH_COLS_SHORT = ['Patente','Km Actual','Uso correcto','Nuevos Choques','Exc. Velocidad','Multas','Control mensual','Limpieza','Matafuego','GPS','Combustible (L)'];
 let _vehPendingData = null;
+let _vehAllDocs = [];
+let _vehMesActivo = null;
+
+function vehCelda(val){
+  if(val===null||val===undefined||val==='') return '<td style="text-align:center;color:var(--text-muted);">—</td>';
+  const s = String(val).trim();
+  if(s==='✔'||s==='✓') return `<td style="text-align:center;color:#1a7a56;font-size:16px;">✔</td>`;
+  if(s.toLowerCase()==='sin novedades') return `<td style="text-align:center;color:var(--text-muted);font-size:11px;">Sin novedades</td>`;
+  if(s.toLowerCase()==='sin uso') return `<td style="text-align:center;color:var(--text-muted);font-style:italic;">Sin uso</td>`;
+  if(!isNaN(parseFloat(s))&&s!=='') return `<td style="text-align:center;">${parseFloat(s).toLocaleString('es-AR')}</td>`;
+  return `<td style="text-align:center;color:#b5870a;font-weight:600;font-size:11px;">${s}</td>`;
+}
+
+function vehInitListeners(){
+  const dropzone = document.getElementById('vehDropzone');
+  const fileInput = document.getElementById('vehFileInput');
+  if(!dropzone||!fileInput) return;
+  dropzone.addEventListener('click',()=>fileInput.click());
+  dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
+  dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');vehHandleFile(e.dataTransfer.files[0]);});
+  fileInput.addEventListener('change',()=>vehHandleFile(fileInput.files[0]));
+
+  document.getElementById('vehBtnVolver')?.addEventListener('click',()=>{
+    document.getElementById('vehiculosUploadScreen').style.display='flex';
+    document.getElementById('vehiculosDashboard').style.display='none';
+  });
+
+  document.getElementById('vehBtnGuardar')?.addEventListener('click', async()=>{
+    if(!_vehPendingData) return;
+    const sMsg = document.getElementById('vehStatusMsg');
+    const mesVal = document.getElementById('vehMesInput')?.value||'Sin clasificar';
+    if(sMsg){sMsg.className='status';sMsg.textContent='Guardando...';}
+    try{
+      await window._fb.saveVehiculo({..._vehPendingData, mes:mesVal, timestamp:Date.now()});
+      if(sMsg){sMsg.className='status ok';sMsg.textContent='✓ Guardado correctamente';}
+      _vehPendingData=null;
+      document.getElementById('vehConfigRow').innerHTML='';
+      document.getElementById('vehBtnGuardar').disabled=true;
+      vehLoadSaved();
+    }catch(e){
+      if(sMsg){sMsg.className='status err';sMsg.textContent='Error: '+e.message;}
+    }
+  });
+}
+
+function vehHandleFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  const sMsg = document.getElementById('vehStatusMsg');
+  reader.onload = e=>{
+    try{
+      const wb = XLSX.read(e.target.result,{type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      // Fix: if first header is null/empty, treat as 'Patente'
+      const rawHeaders = raw[0];
+      const headers = rawHeaders.map((h,i)=>{
+        if(i===0 && (!h || String(h).trim()==='')) return 'Patente';
+        return h ? String(h).trim() : '';
+      });
+      const rows = raw.slice(1).filter(r=>r&&r[0]!=null&&String(r[0]).trim()!=='');
+      const vehiculos = rows.map(r=>{
+        const obj={};
+        headers.forEach((h,i)=>{if(h) obj[h]=r[i]!=null?r[i]:null;});
+        return obj;
+      });
+      _vehPendingData = {vehiculos, totalVehiculos:vehiculos.length};
+      document.getElementById('vehConfigRow').innerHTML=`
+        <div class="file-item">
+          <span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${vehiculos.length} vehículos)</span></span>
+          <label>Mes/Año&nbsp;</label><input type="text" id="vehMesInput" placeholder="ej: Marzo 2026" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;" />
+        </div>`;
+      document.getElementById('vehBtnGuardar').disabled=false;
+      if(sMsg){sMsg.className='status ok';sMsg.textContent=`✓ ${vehiculos.length} vehículos listos`;}
+    }catch(err){
+      if(sMsg){sMsg.className='status err';sMsg.textContent='Error al leer el archivo: '+err.message;}
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function vehLoadSaved(){
+  if(!window._fb){ window.addEventListener('firebaseReady',vehLoadSaved,{once:true}); return; }
+  try{
+    _vehAllDocs = await window._fb.getVehiculos();
+    const section = document.getElementById('vehSavedSection');
+    const list = document.getElementById('vehSavedList');
+    if(!_vehAllDocs.length){ if(section) section.style.display='none'; return; }
+    if(section) section.style.display='block';
+
+    // Group by mes, sorted chronologically
+    const byMes={};
+    _vehAllDocs.forEach(d=>{const m=d.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(d);});
+    const mesesOrdenados=Object.keys(byMes).sort((a,b)=>{
+      const aTs=Math.min(...byMes[a].map(d=>d.timestamp||0));
+      const bTs=Math.min(...byMes[b].map(d=>d.timestamp||0));
+      return bTs-aTs; // most recent first in sidebar
+    });
+
+    list.innerHTML='';
+    // Mes tabs for evolution
+    const tabsHTML = ['todos',...[...mesesOrdenados].reverse()].map(m=>`
+      <button onclick="vehSetMes('${m}')" id="veh-tab-${m.replace(/\s+/g,'-')}"
+        style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;
+        font-family:'DM Sans',sans-serif;cursor:pointer;margin-bottom:6px;
+        background:${m===(_vehMesActivo||'todos')?'var(--navy)':'var(--white)'};
+        color:${m===(_vehMesActivo||'todos')?'white':'var(--text)'};">
+        ${m==='todos'?'📊 Todos':'📁 '+m}
+      </button>`).join('');
+    list.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${tabsHTML}</div><div id="vehFolderList"></div>`;
+
+    vehRenderFolders(byMes, mesesOrdenados);
+    if(_vehAllDocs.length) vehBuildDashboard(_vehAllDocs[_vehAllDocs.length-1]);
+  }catch(e){ console.error(e); }
+}
+
+function vehRenderFolders(byMes, mesesOrdenados){
+  const folderList = document.getElementById('vehFolderList');
+  if(!folderList) return;
+  folderList.innerHTML='';
+  mesesOrdenados.forEach(mes=>{
+    const fId=`veh-folder-${mes.replace(/\s+/g,'-')}`;
+    const folder=document.createElement('div');
+    folder.style.cssText='margin-bottom:4px;';
+    folder.innerHTML=`
+      <div onclick="toggleFolder('${fId}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--navy);border-radius:8px;cursor:pointer;">
+        <span id="${fId}-icon" style="font-size:13px;">📁</span>
+        <span style="flex:1;font-size:13px;font-weight:600;color:white;">${mes}</span>
+        <span id="${fId}-arrow" style="color:rgba(255,255,255,.5);font-size:11px;">▾</span>
+      </div>
+      <div id="${fId}" style="padding-left:12px;margin-top:4px;">
+        ${byMes[mes].map(d=>`
+          <div class="saved-week-item" style="margin-bottom:4px;">
+            <div style="flex:1">
+              <div class="saved-week-label">🚗 ${d.mes||'Sin clasificar'}</div>
+              <div class="saved-week-sub">${d.totalVehiculos} vehículos</div>
+            </div>
+            <button class="btn-view-week" onclick='vehBuildDashboard(${JSON.stringify(d).replace(/'/g,"&#39;")})'>Ver →</button>
+            <button class="btn-del-week" onclick='vehDelete("${d.id}")'>✕</button>
+          </div>`).join('')}
+      </div>`;
+    folderList.appendChild(folder);
+  });
+}
+
+function vehSetMes(mes){
+  _vehMesActivo = mes;
+  // Update tab styles
+  document.querySelectorAll('[id^="veh-tab-"]').forEach(btn=>{
+    const active = btn.id === `veh-tab-${mes.replace(/\s+/g,'-')}`;
+    btn.style.background = active ? 'var(--navy)' : 'var(--white)';
+    btn.style.color = active ? 'white' : 'var(--text)';
+  });
+  // Filter docs and show
+  const filtered = mes==='todos' ? _vehAllDocs : _vehAllDocs.filter(d=>(d.mes||'Sin clasificar')===mes);
+  if(filtered.length) vehBuildDashboard(filtered[filtered.length-1]);
+}
+
+async function vehDelete(id){
+  if(!confirm('¿Eliminar este registro?')) return;
+  await window._fb.deleteVehiculo(id);
+  vehLoadSaved();
+}
+
+function vehBuildDashboard(d){
+  document.getElementById('vehiculosUploadScreen').style.display='none';
+  document.getElementById('vehiculosDashboard').style.display='block';
+  document.getElementById('vehPeriod').textContent=d.mes||'Sin clasificar';
+
+  const vehiculos = d.vehiculos||[];
+  const conObs = vehiculos.filter(v=>{
+    return Object.entries(v).some(([k,val])=>{
+      if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
+      const s=String(val||'').trim().toLowerCase();
+      return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
+    });
+  });
+  const combustTotal = vehiculos.reduce((s,v)=>s+(parseFloat(v['Consumo de combustible'])||0),0);
+
+  document.getElementById('vehKpis').innerHTML=[
+    {cls:'navy',label:'Vehículos en flota',value:vehiculos.length,sub:'total registrados'},
+    {cls:'green',label:'Sin observaciones',value:vehiculos.length-conObs.length,sub:'en condiciones'},
+    {cls:'purple',label:'Con observaciones',value:conObs.length,sub:'requieren atención'},
+    {cls:'teal',label:'Combustible total',value:combustTotal.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})+' L',sub:'consumo del período'},
+  ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
+
+  // Tabla
+  let tHTML=`<thead><tr>${VEH_COLS_SHORT.map(c=>`<th style="white-space:nowrap;">${c}</th>`).join('')}</tr></thead><tbody>`;
+  vehiculos.forEach((v,i)=>{
+    const hasObs=Object.entries(v).some(([k,val])=>{
+      if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
+      const s=String(val||'').trim().toLowerCase();
+      return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
+    });
+    const bg=hasObs?'background:#fff8e6;':(i%2===0?'':'background:var(--surface)');
+    tHTML+=`<tr style="${bg}">`;
+    VEH_COLS.forEach(col=>{
+      if(col==='Patente') tHTML+=`<td><strong>${v[col]||'—'}</strong></td>`;
+      else tHTML+=vehCelda(v[col]);
+    });
+    tHTML+=`</tr>`;
+  });
+  document.getElementById('vehTabla').innerHTML=tHTML+'</tbody>';
+}
+
+document.addEventListener('DOMContentLoaded', vehInitListeners);
 
 function vehCelda(val){
   if(val===null||val===undefined||val==='') return '<td style="text-align:center;color:var(--text-muted);">—</td>';
