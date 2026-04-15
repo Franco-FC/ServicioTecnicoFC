@@ -1993,12 +1993,11 @@ async function vehLoadSaved(){
     });
     list.innerHTML='';
     vehRenderFolders(byMes, mesesOrdenados);
-    if(_vehAllDocs.length) vehBuildDashboard(_vehAllDocs[_vehAllDocs.length-1]);
   }catch(e){ console.error(e); }
 }
 
 function vehRenderFolders(byMes, mesesOrdenados){
-  const folderList = document.getElementById('vehFolderList');
+  const folderList = document.getElementById('vehSavedList');
   if(!folderList) return;
   folderList.innerHTML='';
   mesesOrdenados.forEach(mes=>{
