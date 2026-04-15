@@ -1976,9 +1976,12 @@ async function vehLoadSaved(){
   if(!window._fb){ window.addEventListener('firebaseReady',vehLoadSaved,{once:true}); return; }
   try{
     _vehAllDocs = await window._fb.getVehiculos();
-    const evolBtn = document.getElementById('vehEvolBtn');
-    if(!_vehAllDocs.length){ if(evolBtn) evolBtn.style.display='none'; return; }
-    if(evolBtn) evolBtn.style.display='block';
+    const section = document.getElementById('vehSavedSection');
+    const list = document.getElementById('vehSavedList');
+    const btnEvol = document.getElementById('vehBtnEvolucionUpload');
+    if(!_vehAllDocs.length){ if(section) section.style.display='none'; return; }
+    if(section) section.style.display='block';
+    if(btnEvol) btnEvol.style.display=_vehAllDocs.length>1?'flex':'none';
 
     // Group by mes, sorted most recent first
     const byMes={};
@@ -1988,6 +1991,7 @@ async function vehLoadSaved(){
       const bTs=Math.min(...byMes[b].map(d=>d.timestamp||0));
       return bTs-aTs;
     });
+    list.innerHTML='';
     vehRenderFolders(byMes, mesesOrdenados);
     if(_vehAllDocs.length) vehBuildDashboard(_vehAllDocs[_vehAllDocs.length-1]);
   }catch(e){ console.error(e); }
@@ -2214,12 +2218,12 @@ function vehCelda(val){
       Guardar en Firebase
     </button>
     <div class="status" id="vehStatusMsg"></div>
-    <div id="vehEvolBtn" style="display:none;margin-top:1rem;">
-      <button class="btn-secondary" id="vehBtnEvolucionUpload" style="width:100%;justify-content:center;">
+    <div id="vehSavedSection" style="display:none;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.25rem;text-align:left;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem;">Meses guardados en Firebase</div>
+      <div id="vehSavedList"></div>
+      <button class="btn-secondary" id="vehBtnEvolucionUpload" style="margin-top:.75rem;width:100%;justify-content:center;display:none;">
         📈 Ver evolución de todos los meses →
       </button>
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:.75rem 0 .5rem;">Meses guardados</div>
-      <div id="vehSavedList"></div>
     </div>
   </div>
 </div>
