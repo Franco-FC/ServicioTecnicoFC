@@ -1916,6 +1916,7 @@ function vehInitListeners(){
 
   document.getElementById('vehBtnVolver')?.addEventListener('click', vehShowUpload);
   document.getElementById('vehBtnEvolucion')?.addEventListener('click', vehShowEvolucion);
+  document.getElementById('vehBtnEvolucionUpload')?.addEventListener('click', vehShowEvolucion);
 
   document.getElementById('vehBtnGuardar')?.addEventListener('click', async()=>{
     if(!_vehPendingData) return;
@@ -1975,33 +1976,9 @@ async function vehLoadSaved(){
   if(!window._fb){ window.addEventListener('firebaseReady',vehLoadSaved,{once:true}); return; }
   try{
     _vehAllDocs = await window._fb.getVehiculos();
-    const section = document.getElementById('vehSavedSection');
-    const list = document.getElementById('vehSavedList');
-    if(!_vehAllDocs.length){ if(section) section.style.display='none'; return; }
-    if(section) section.style.display='block';
-
-    // Group by mes, sorted chronologically
-    const byMes={};
-    _vehAllDocs.forEach(d=>{const m=d.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(d);});
-    const mesesOrdenados=Object.keys(byMes).sort((a,b)=>{
-      const aTs=Math.min(...byMes[a].map(d=>d.timestamp||0));
-      const bTs=Math.min(...byMes[b].map(d=>d.timestamp||0));
-      return bTs-aTs; // most recent first in sidebar
-    });
-
-    list.innerHTML='';
-    // Mes tabs for evolution
-    const tabsHTML = ['todos',...[...mesesOrdenados].reverse()].map(m=>`
-      <button onclick="vehSetMes('${m}')" id="veh-tab-${m.replace(/\s+/g,'-')}"
-        style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;
-        font-family:'DM Sans',sans-serif;cursor:pointer;margin-bottom:6px;
-        background:${m===(_vehMesActivo||'todos')?'var(--navy)':'var(--white)'};
-        color:${m===(_vehMesActivo||'todos')?'white':'var(--text)'};">
-        ${m==='todos'?'📊 Todos':'📁 '+m}
-      </button>`).join('');
-    list.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${tabsHTML}</div><div id="vehFolderList"></div>`;
-
-    vehRenderFolders(byMes, mesesOrdenados);
+    const evolBtn = document.getElementById('vehEvolBtn');
+    if(!_vehAllDocs.length){ if(evolBtn) evolBtn.style.display='none'; return; }
+    if(evolBtn) evolBtn.style.display='block';
     if(_vehAllDocs.length) vehBuildDashboard(_vehAllDocs[_vehAllDocs.length-1]);
   }catch(e){ console.error(e); }
 }
@@ -2137,49 +2114,21 @@ function vehRenderEvolucion(mes){
   const labels = filtered.map(d=>d.mes||'Sin clasificar');
   document.getElementById('vehEvolBadge').textContent = mes==='todos'?'Todos los meses':mes;
 
-  // Combustible chart
+  // Combustible chart (línea)
   destroyChart('vehCombust');
   charts['vehCombust'] = new Chart(document.getElementById('vehChartCombust'),{
-    type:'bar',
+    type:'line',
     data:{labels, datasets:[{
-      label:'Combustible (L)',
+      label:'Combustible (lts)',
       data:filtered.map(d=>{
         const vs=d.vehiculos||[];
         return parseFloat(vs.reduce((s,v)=>s+(parseFloat(v['Consumo de combustible'])||0),0).toFixed(2));
       }),
-      backgroundColor:'#2e6da4', borderRadius:4
+      borderColor:'#2e6da4', backgroundColor:'rgba(46,109,164,.08)',
+      tension:.3, pointRadius:5, fill:true
     }]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true}}}
-  });
-
-  // Observaciones chart
-  destroyChart('vehObs');
-  charts['vehObs'] = new Chart(document.getElementById('vehChartObs'),{
-    type:'bar',
-    data:{labels, datasets:[{
-      label:'Con observaciones',
-      data:filtered.map(d=>{
-        const vs=d.vehiculos||[];
-        return vs.filter(v=>Object.entries(v).some(([k,val])=>{
-          if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
-          const s=String(val||'').trim().toLowerCase();
-          return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
-        })).length;
-      }),
-      backgroundColor: filtered.map(d=>{
-        const vs=d.vehiculos||[];
-        const obs=vs.filter(v=>Object.entries(v).some(([k,val])=>{
-          if(k==='Patente'||k==='Kilometraje Actual'||k==='Consumo de combustible') return false;
-          const s=String(val||'').trim().toLowerCase();
-          return s!==''&&s!=='✔'&&s!=='✓'&&s!=='sin novedades'&&s!=='sin uso'&&s!=='—'&&s!=='null';
-        })).length;
-        return obs===0?'#1a7a56':obs<=2?'#b5870a':'#c0392b';
-      }),
-      borderRadius:4
-    }]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{stepSize:1}}}}
   });
 
   // Tabla historial por patente
@@ -2255,9 +2204,10 @@ function vehCelda(val){
       Guardar en Firebase
     </button>
     <div class="status" id="vehStatusMsg"></div>
-    <div id="vehSavedSection" style="display:none;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.25rem;text-align:left;">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem;">Meses guardados</div>
-      <div id="vehSavedList"></div>
+    <div id="vehEvolBtn" style="display:none;margin-top:1rem;">
+      <button class="btn-secondary" id="vehBtnEvolucionUpload" style="width:100%;justify-content:center;">
+        📈 Ver evolución de todos los meses →
+      </button>
     </div>
   </div>
 </div>
@@ -2298,13 +2248,8 @@ function vehCelda(val){
   </div>
   <div class="section-label">Combustible por mes</div>
   <div class="chart-full">
-    <h3>Consumo de combustible mensual (L)</h3>
+    <h3>Consumo de combustible mensual (lts)</h3>
     <div style="position:relative;height:260px;"><canvas id="vehChartCombust"></canvas></div>
-  </div>
-  <div class="section-label">Observaciones por mes</div>
-  <div class="chart-full">
-    <h3>Vehículos con observaciones</h3>
-    <div style="position:relative;height:220px;"><canvas id="vehChartObs"></canvas></div>
   </div>
   <div class="section-label">Comparativa mensual</div>
   <div class="table-card-full" style="overflow-x:auto;">
