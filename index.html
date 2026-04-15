@@ -1979,6 +1979,16 @@ async function vehLoadSaved(){
     const evolBtn = document.getElementById('vehEvolBtn');
     if(!_vehAllDocs.length){ if(evolBtn) evolBtn.style.display='none'; return; }
     if(evolBtn) evolBtn.style.display='block';
+
+    // Group by mes, sorted most recent first
+    const byMes={};
+    _vehAllDocs.forEach(d=>{const m=d.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(d);});
+    const mesesOrdenados=Object.keys(byMes).sort((a,b)=>{
+      const aTs=Math.min(...byMes[a].map(d=>d.timestamp||0));
+      const bTs=Math.min(...byMes[b].map(d=>d.timestamp||0));
+      return bTs-aTs;
+    });
+    vehRenderFolders(byMes, mesesOrdenados);
     if(_vehAllDocs.length) vehBuildDashboard(_vehAllDocs[_vehAllDocs.length-1]);
   }catch(e){ console.error(e); }
 }
@@ -2208,6 +2218,8 @@ function vehCelda(val){
       <button class="btn-secondary" id="vehBtnEvolucionUpload" style="width:100%;justify-content:center;">
         📈 Ver evolución de todos los meses →
       </button>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin:.75rem 0 .5rem;">Meses guardados</div>
+      <div id="vehSavedList"></div>
     </div>
   </div>
 </div>
