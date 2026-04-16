@@ -35,12 +35,35 @@
   // });
 
   // ── AUTH STATE ──
+  // ── LOG DE ACCESOS ──
+  // Registrar intento fallido (dominio no permitido)
+  async function registrarIntentoFallido(email){
+    if(!window._fb) return;
+    try{
+      await db.collection('log_accesos').add({
+        email, tipo:'rechazado', dominio:email.split('@')[1]||'desconocido',
+        timestamp:Date.now(), fecha:new Date().toLocaleString('es-AR')
+      });
+    }catch(e){ console.error('log error:',e); }
+  }
+
+  // Registrar acceso exitoso
+  async function registrarAccesoExitoso(email){
+    if(!window._fb) return;
+    try{
+      await db.collection('log_accesos').add({
+        email, tipo:'exitoso', dominio:email.split('@')[1]||'desconocido',
+        timestamp:Date.now(), fecha:new Date().toLocaleString('es-AR')
+      });
+    }catch(e){ console.error('log error:',e); }
+  }
+
   auth.onAuthStateChanged(user => {
     if (user) {
       const dominio = user.email.split('@')[1];
       if (dominio !== DOMINIO_PERMITIDO) {
-        // Email de dominio no permitido → cerrar sesión
         auth.signOut();
+        registrarIntentoFallido(user.email);
         mostrarLoginError('Solo se permite acceso con cuentas @' + DOMINIO_PERMITIDO);
         return;
       }
@@ -48,10 +71,10 @@
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appContainer').style.display = 'block';
       document.getElementById('userEmail').textContent = user.email;
+      registrarAccesoExitoso(user.email);
       initUploadListeners();
       setTimeout(() => window.dispatchEvent(new Event('firebaseReady')), 300);
     } else {
-      // No autenticado → mostrar login
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('appContainer').style.display = 'none';
     }
@@ -256,6 +279,7 @@
     <div class="home-brand"><span style="color:#3a3a3a;font-weight:900;letter-spacing:.02em;">FULL</span><span style="color:#8DC63F;font-weight:900;letter-spacing:.02em;">CONTROL</span></div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span id="userEmail" style="font-size:12px;color:rgba(255,255,255,.5);"></span>
+      <button onclick="verLogAccesos()" style="font-size:11px;padding:5px 12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">🔍 Accesos</button>
       <button onclick="cerrarSesion()" style="font-size:11px;padding:5px 12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">Cerrar sesión</button>
     </div>
   </div>
@@ -1973,17 +1997,20 @@ function vehHandleFile(file){
 }
 
 async function vehLoadSaved(){
-  if(!window._fb){ window.addEventListener('firebaseReady',vehLoadSaved,{once:true}); return; }
+  if(!window._fb){
+    window.addEventListener('firebaseReady', vehLoadSaved, {once:true});
+    return;
+  }
   try{
     _vehAllDocs = await window._fb.getVehiculos();
     const section = document.getElementById('vehSavedSection');
     const list = document.getElementById('vehSavedList');
     const btnEvol = document.getElementById('vehBtnEvolucionUpload');
-    if(!_vehAllDocs.length){ if(section) section.style.display='none'; return; }
-    if(section) section.style.display='block';
+    if(!section || !list) return;
+    if(!_vehAllDocs.length){ section.style.display='none'; return; }
+    section.style.display='block';
     if(btnEvol) btnEvol.style.display=_vehAllDocs.length>1?'flex':'none';
 
-    // Group by mes, sorted most recent first
     const byMes={};
     _vehAllDocs.forEach(d=>{const m=d.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(d);});
     const mesesOrdenados=Object.keys(byMes).sort((a,b)=>{
@@ -1993,7 +2020,7 @@ async function vehLoadSaved(){
     });
     list.innerHTML='';
     vehRenderFolders(byMes, mesesOrdenados);
-  }catch(e){ console.error(e); }
+  }catch(e){ console.error('vehLoadSaved error:',e); }
 }
 
 function vehRenderFolders(byMes, mesesOrdenados){
@@ -2186,6 +2213,45 @@ function vehCelda(val){
 }
 
 
+// ── LOG ACCESOS VIEWER ──
+let _logAccesos = [];
+async function verLogAccesos(){
+  const modal = document.getElementById('modalAccesos');
+  modal.style.display = 'flex';
+  const list = document.getElementById('logAccesosList');
+  list.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Cargando...</p>';
+  try{
+    const snap = await db.collection('log_accesos').orderBy('timestamp','desc').limit(100).get();
+    _logAccesos = snap.docs.map(d=>d.data());
+    filtrarLog('todos');
+  }catch(e){
+    list.innerHTML = `<p style="color:var(--red);font-size:13px;">Error: ${e.message}</p>`;
+  }
+}
+
+function filtrarLog(tipo){
+  // Update tab styles
+  ['todos','exitoso','rechazado'].forEach(t=>{
+    const btn = document.getElementById(`logTab${t.charAt(0).toUpperCase()+t.slice(1)}`);
+    if(btn){ btn.style.background=t===tipo?'var(--navy)':'var(--white)'; btn.style.color=t===tipo?'white':'var(--text)'; }
+  });
+  const filtered = tipo==='todos' ? _logAccesos : _logAccesos.filter(l=>l.tipo===tipo);
+  const list = document.getElementById('logAccesosList');
+  if(!filtered.length){ list.innerHTML='<p style="color:var(--text-muted);font-size:13px;">Sin registros.</p>'; return; }
+  list.innerHTML = filtered.map(l=>{
+    const color = l.tipo==='exitoso' ? '#1a7a56' : '#c0392b';
+    const icon = l.tipo==='exitoso' ? '✓' : '✗';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--surface2);">
+      <span style="font-size:14px;font-weight:700;color:${color};min-width:16px;">${icon}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;color:var(--navy);">${l.email||'—'}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${l.fecha||'—'}</div>
+      </div>
+      <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${l.tipo==='exitoso'?'#e6f4ee':'#fde8e6'};color:${color};">${l.tipo==='exitoso'?'Exitoso':'Rechazado'}</span>
+    </div>`;
+  }).join('');
+}
+
 // Auth handles initialization via firebaseReady event
 </script>
 <!-- VEHÍCULOS SCREEN -->
@@ -2275,6 +2341,22 @@ function vehCelda(val){
 
 </div>
 <!-- FIN VEHÍCULOS -->
+
+<!-- MODAL LOG ACCESOS -->
+<div id="modalAccesos" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:16px;padding:1.75rem;max-width:560px;width:90%;max-height:80vh;display:flex;flex-direction:column;gap:1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin:0;">🔍 Registro de Accesos</h2>
+      <button onclick="document.getElementById('modalAccesos').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="filtrarLog('todos')" id="logTabTodos" style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;background:var(--navy);color:white;">Todos</button>
+      <button onclick="filtrarLog('exitoso')" id="logTabExitoso" style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;background:var(--white);color:var(--text);">✓ Exitosos</button>
+      <button onclick="filtrarLog('rechazado')" id="logTabRechazado" style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;background:var(--white);color:var(--text);">✗ Rechazados</button>
+    </div>
+    <div id="logAccesosList" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 
 </div><!-- end appContainer -->
 </body>
