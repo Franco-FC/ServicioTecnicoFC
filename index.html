@@ -107,6 +107,9 @@
     saveVehiculo:  (data) => db.collection('control_vehiculos').add(data),
     getVehiculos:  async () => { const s = await db.collection('control_vehiculos').orderBy('timestamp','asc').get(); return s.docs.map(d=>({id:d.id,...d.data()})); },
     deleteVehiculo:(id)   => db.collection('control_vehiculos').doc(id).delete(),
+    saveInstalacion:  (data) => db.collection('semanas_instalacion').add(data),
+    getInstalacion:   async () => { const s = await db.collection('semanas_instalacion').orderBy('timestamp','asc').get(); return s.docs.map(d=>({id:d.id,...d.data()})); },
+    deleteInstalacion:(id)   => db.collection('semanas_instalacion').doc(id).delete(),
   };
 </script>
 <style>
@@ -292,10 +295,10 @@
         <h3>Servicio Técnico</h3>
         <span class="arrow">Ingresar →</span>
       </div>
-      <div class="home-card instalacion">
+      <div id="btnInstalacion" class="home-card instalacion available" style="cursor:pointer;">
         <div class="home-card-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg></div>
         <h3>Instalación</h3>
-        <span class="coming-soon">Próximamente</span>
+        <span class="arrow">Ingresar →</span>
       </div>
       <div id="btnFidelizacion" class="home-card fidelizacion available">
         <div class="home-card-icon" style="background:var(--accent);"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3C9.5 3 8 4.5 8 4.5C6.5 3.5 4 4 3 6C2 8 3 10 4 11C3 12 3 14 4.5 15C4.5 17 6 18.5 8 18.5C8.5 19.5 10 21 12 21C14 21 15.5 19.5 16 18.5C18 18.5 19.5 17 19.5 15C21 14 21 12 20 11C21 10 22 8 21 6C20 4 17.5 3.5 16 4.5C16 4.5 14.5 3 12 3Z" stroke="var(--navy)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 3V21M8 4.5C8 4.5 8 8 10 10M16 4.5C16 4.5 16 8 14 10M4 11C4 11 7 11 10 13M20 11C20 11 17 11 14 13M4.5 15C4.5 15 7 15 10 16M19.5 15C19.5 15 17 15 14 16" stroke="var(--navy)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
@@ -626,6 +629,7 @@ function goTo(s){
   document.getElementById('resumenScreen').style.display=s==='resumen'?'block':'none';
   document.getElementById('kpisScreen').style.display=s==='kpis'?'block':'none';
   document.getElementById('vehiculosScreen').style.display=s==='vehiculos'?'block':'none';
+  document.getElementById('instalacionScreen').style.display=s==='instalacion'?'block':'none';
   if(s==='servtec'){
     document.getElementById('uploadScreen').style.display='flex';
     document.getElementById('dashboard').style.display='none';
@@ -646,6 +650,12 @@ function goTo(s){
     document.getElementById('vehiculosEvolucionScreen').style.display='none';
     vehLoadSaved();
   }
+  if(s==='instalacion'){
+    document.getElementById('instUploadScreen').style.display='flex';
+    document.getElementById('instDashboard').style.display='none';
+    document.getElementById('instEvolucionScreen').style.display='none';
+    instLoadSaved();
+  }
   window.scrollTo(0,0);
 }
 document.addEventListener('DOMContentLoaded', function() {
@@ -654,11 +664,13 @@ document.addEventListener('DOMContentLoaded', function() {
   const btnFidelizacion = document.getElementById('btnFidelizacion');
   const btnKpis = document.getElementById('btnKpis');
   const btnVehiculos = document.getElementById('btnVehiculos');
+  const btnInstalacion = document.getElementById('btnInstalacion');
   if(btnResumen) btnResumen.addEventListener('click', ()=>goTo('resumen'));
   if(btnServtec) btnServtec.addEventListener('click', ()=>goTo('servtec'));
   if(btnFidelizacion) btnFidelizacion.addEventListener('click', ()=>goTo('fidelizacion'));
   if(btnKpis) btnKpis.addEventListener('click', ()=>goTo('kpis'));
   if(btnVehiculos) btnVehiculos.addEventListener('click', ()=>goTo('vehiculos'));
+  if(btnInstalacion) btnInstalacion.addEventListener('click', ()=>goTo('instalacion'));
 });
 function showUpload(){
   document.getElementById('dashboard').style.display='none';
@@ -1594,19 +1606,22 @@ const TECNICOS_CONFIG = [
 
 let _resumenSTWeeks = [];
 let _resumenFidelWeeks = [];
+let _resumenInstWeeks = [];
 
 async function loadResumen(){
   if(!window._fb) { window.addEventListener('firebaseReady', loadResumen, {once:true}); return; }
   try {
     _resumenSTWeeks = sortWeeks(await window._fb.getWeeks());
     _resumenFidelWeeks = sortWeeks(await window._fb.getFidel());
-    // Populate month filter
+    _resumenInstWeeks = sortWeeks(await window._fb.getInstalacion());
     const allMeses = [...new Set([
       ..._resumenSTWeeks.map(w=>w.mes||'Sin clasificar'),
-      ..._resumenFidelWeeks.map(w=>w.mes||'Sin clasificar')
+      ..._resumenFidelWeeks.map(w=>w.mes||'Sin clasificar'),
+      ..._resumenInstWeeks.map(w=>w.mes||'Sin clasificar'),
     ])].sort((a,b)=>{
-      const aD = Math.min(...[..._resumenSTWeeks,..._resumenFidelWeeks].filter(w=>(w.mes||'Sin clasificar')===a).map(w=>extractStartDate(w.label)));
-      const bD = Math.min(...[..._resumenSTWeeks,..._resumenFidelWeeks].filter(w=>(w.mes||'Sin clasificar')===b).map(w=>extractStartDate(w.label)));
+      const all=[..._resumenSTWeeks,..._resumenFidelWeeks,..._resumenInstWeeks];
+      const aD = Math.min(...all.filter(w=>(w.mes||'Sin clasificar')===a).map(w=>extractStartDate(w.label)));
+      const bD = Math.min(...all.filter(w=>(w.mes||'Sin clasificar')===b).map(w=>extractStartDate(w.label)));
       return aD-bD;
     });
     const sel = document.getElementById('resumenMesFiltro');
@@ -1620,20 +1635,30 @@ function renderResumen(){
   const mesFiltro = document.getElementById('resumenMesFiltro').value;
   let stWeeks = mesFiltro==='todos' ? _resumenSTWeeks : _resumenSTWeeks.filter(w=>(w.mes||'Sin clasificar')===mesFiltro);
   let fidelWeeks = mesFiltro==='todos' ? _resumenFidelWeeks : _resumenFidelWeeks.filter(w=>(w.mes||'Sin clasificar')===mesFiltro);
-  const allLabels = [...new Set([...stWeeks.map(w=>w.label), ...fidelWeeks.map(w=>w.label)])];
+  let instWeeks = mesFiltro==='todos' ? _resumenInstWeeks : _resumenInstWeeks.filter(w=>(w.mes||'Sin clasificar')===mesFiltro);
+  const allLabels = [...new Set([...stWeeks.map(w=>w.label), ...fidelWeeks.map(w=>w.label), ...instWeeks.map(w=>w.label)])];
   const sortedLabels = allLabels.sort((a,b)=>extractStartDate(a)-extractStartDate(b));
 
   // Columnas ST (incluye Mauricio)
   const stCols = ['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Gonzalo Rodriguez','Marcos Martin'];
   // Columnas Fidelizacion (incluye Mauricio)
   const fidelCols = ['Mauricio Gonzales'];
-  // Columnas Instalacion
-  const instCols = ['Lucas Espinosa','Ezequiel Wagner','Cristian Biglia'];
+  // Columnas Instalacion — real data now
+  const instCols = ['Lucas Espinosa','Ezequiel Wagner','Cristian Biglia','Marcos Martin','Gonzalo Rodriguez'];
 
-  function efCell(ef, isInst){
-    if(isInst) return `<td style="text-align:center;color:var(--text-muted);font-size:11px;font-style:italic;">—</td>`;
+  function efCell(ef, pending){
+    if(pending) return `<td style="text-align:center;color:var(--text-muted);font-size:11px;font-style:italic;">—</td>`;
     if(ef==null) return `<td style="text-align:center;color:var(--text-muted);">—</td>`;
-    const c=ef>=80?'#1a7a56':ef>=60?'#1565a8':'#c0392b';
+    const c=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
+    return `<td style="text-align:center;font-weight:600;color:${c};">${ef}%</td>`;
+  }
+
+  function instEfCell(lbl, instW){
+    // Find this technician in instalacion weeks matching this label
+    const w = instW.find(x=>x.label===lbl);
+    if(!w) return `<td style="text-align:center;color:var(--text-muted);">—</td>`;
+    const ef = w.totalEfect;
+    const c=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
     return `<td style="text-align:center;font-weight:600;color:${c};">${ef}%</td>`;
   }
 
@@ -1652,23 +1677,26 @@ function renderResumen(){
       <th rowspan="2" style="vertical-align:middle;min-width:130px;">Semana</th>
       <th colspan="${stSpan}" style="color:white;text-align:center;font-size:11px;border-bottom:2px solid rgba(255,255,255,.3);">Servicio Técnico</th>
       <th colspan="${fidelSpan}" style="color:white;text-align:center;font-size:11px;border-bottom:2px solid rgba(255,255,255,.3);">Fidelización</th>
-      <th colspan="${instSpan}" style="color:white;text-align:center;font-size:11px;opacity:.5;border-bottom:2px solid rgba(255,255,255,.2);">Instalación</th>
+      <th colspan="${instSpan}" style="color:white;text-align:center;font-size:11px;border-bottom:2px solid rgba(255,255,255,.2);">Instalación</th>
     </tr>
     <tr>
       ${stCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;">${n.split(' ')[0]}</th>`).join('')}
       ${fidelCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;">${n.split(' ')[0]}</th>`).join('')}
-      ${instCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;opacity:.5;">${n.split(' ')[0]}</th>`).join('')}
+      ${instCols.map(n=>`<th style="color:white;font-size:10px;font-weight:400;">${n.split(' ')[0]}</th>`).join('')}
     </tr>
   </thead>`;
 
   function buildRow(lbl, stW, fW, indent, bg){
     let html = `<tr style="${bg}"><td style="${indent}padding-left:${indent?'20px':'10px'};">${indent?'↳ ':''}<strong>${lbl}</strong></td>`;
-    // ST cols
     stCols.forEach(n=>{ html+=efCell(getTecEf(stW,n), false); });
-    // Fidel cols
     fidelCols.forEach(()=>{ html+=efCell(fW?fW.efectividad:null, false); });
-    // Instalacion cols
-    instCols.forEach(()=>{ html+=efCell(null, true); });
+    // Instalacion — show efect from instWeeks for this label
+    const iW=instWeeks.find(w=>w.label===lbl);
+    instCols.forEach(n=>{
+      if(!iW){ html+=`<td style="text-align:center;color:var(--text-muted);">—</td>`; return; }
+      const tec=(iW.tecnicos||[]).find(t=>t.nombre.toLowerCase().includes(n.toLowerCase().split(' ')[0]));
+      html+=efCell(tec?tec.efect:null, false);
+    });
     html+='</tr>';
     return html;
   }
@@ -1679,7 +1707,8 @@ function renderResumen(){
     sortedLabels.forEach(lbl=>{
       const stW=stWeeks.find(w=>w.label===lbl);
       const fW=fidelWeeks.find(w=>w.label===lbl);
-      const mes=(stW||fW)?.mes||'Sin clasificar';
+      const iW=instWeeks.find(w=>w.label===lbl);
+      const mes=(stW||fW||iW)?.mes||'Sin clasificar';
       if(!byMes[mes])byMes[mes]=[];byMes[mes].push(lbl);
     });
     const mesesSorted=Object.keys(byMes).sort((a,b)=>extractStartDate(byMes[a][0])-extractStartDate(byMes[b][0]));
@@ -2252,6 +2281,329 @@ function filtrarLog(tipo){
   }).join('');
 }
 
+// ── INSTALACIÓN ──
+const INST_TECNICOS = ['Lucas Espinosa','Ezequiel Wagner','Cristian Biglia','Marcos Martin','Gonzalo Rodriguez'];
+let _instPendingFiles = [];
+
+function instShowUpload(){
+  document.getElementById('instUploadScreen').style.display='flex';
+  document.getElementById('instDashboard').style.display='none';
+  document.getElementById('instEvolucionScreen').style.display='none';
+}
+
+function instInitListeners(){
+  const dropzone = document.getElementById('instDropzone');
+  const fileInput = document.getElementById('instFileInput');
+  if(!dropzone||!fileInput) return;
+  dropzone.addEventListener('click',()=>fileInput.click());
+  dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
+  dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');instHandleFiles(e.dataTransfer.files);});
+  fileInput.addEventListener('change',()=>instHandleFiles(fileInput.files));
+  document.getElementById('instBtnReset')?.addEventListener('click', instShowUpload);
+  document.getElementById('instBtnVerEvol')?.addEventListener('click', instShowEvolucion);
+  document.getElementById('instBtnEvolucion')?.addEventListener('click', instShowEvolucion);
+  document.getElementById('instBtnGenerate')?.addEventListener('click', instGuardar);
+}
+
+function instHandleFiles(files){
+  _instPendingFiles=[];
+  document.getElementById('instConfigRows').innerHTML='';
+  const btn=document.getElementById('instBtnGenerate');
+  if(btn) btn.disabled=true;
+  if(!files.length) return;
+  let loaded=0;
+  Array.from(files).forEach((file,i)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        // Find header row
+        let headerRow=-1;
+        for(let j=0;j<raw.length;j++){
+          if(raw[j]&&raw[j].some(v=>v&&String(v).toLowerCase().includes('abonado'))){headerRow=j;break;}
+        }
+        if(headerRow===-1){headerRow=0;}
+        const headers=raw[headerRow].map(h=>h?String(h).trim():'');
+        // Get semana from first data row col 0
+        const dataRows=raw.slice(headerRow+1).filter(r=>r&&r[1]!=null);
+        const semana=dataRows.length?String(dataRows[0][0]||'').trim():'';
+        const df=dataRows.map(r=>{
+          const obj={};
+          headers.forEach((h,k)=>{if(h)obj[h]=r[k]!=null?r[k]:null;});
+          // Fill semana if missing
+          if(!obj['SEMANA']&&semana) obj['SEMANA']=semana;
+          return obj;
+        });
+        _instPendingFiles[i]={df,name:file.name,semana};
+        // Render config row
+        const div=document.createElement('div');
+        div.className='file-item';
+        div.innerHTML=`<span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${df.length} instalaciones)</span></span>
+          <label>Mes/Año&nbsp;</label><input type="text" id="instMes_${i}" placeholder="ej: Abril 2026" />
+          <label>&nbsp;Período&nbsp;</label><input type="text" id="instLabel_${i}" placeholder="ej: Semana 1 · 06/04" value="${semana}" />`;
+        document.getElementById('instConfigRows').appendChild(div);
+        loaded++;
+        if(loaded===files.length){
+          const b=document.getElementById('instBtnGenerate');
+          if(b)b.disabled=false;
+          const s=document.getElementById('instStatusMsg');
+          if(s){s.className='status ok';s.textContent=`✓ ${files.length} archivo(s) listos`;}
+        }
+      }catch(err){
+        const s=document.getElementById('instStatusMsg');
+        if(s){s.className='status err';s.textContent='Error: '+err.message;}
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function instGuardar(){
+  if(!window._fb) return;
+  const s=document.getElementById('instStatusMsg');
+  const btn=document.getElementById('instBtnGenerate');
+  if(s){s.className='status';s.textContent='Guardando...';}
+  if(btn) btn.disabled=true;
+  try{
+    for(let i=0;i<_instPendingFiles.length;i++){
+      if(!_instPendingFiles[i]) continue;
+      const{df}=_instPendingFiles[i];
+      const mes=document.getElementById(`instMes_${i}`)?.value||'Sin clasificar';
+      const label=document.getElementById(`instLabel_${i}`)?.value||`Semana ${i+1}`;
+      const summary=instComputeSummary(df,label);
+      await window._fb.saveInstalacion({...summary,mes,timestamp:Date.now()});
+    }
+    if(s){s.className='status ok';s.textContent='✓ Guardado correctamente';}
+    _instPendingFiles=[];
+    document.getElementById('instConfigRows').innerHTML='';
+    if(btn) btn.disabled=true;
+    const weeks=await window._fb.getInstalacion();
+    instRenderSaved(weeks);
+    if(weeks.length) instBuildDashboard(weeks[weeks.length-1]);
+  }catch(e){
+    if(s){s.className='status err';s.textContent='Error: '+e.message;}
+    if(btn) btn.disabled=false;
+  }
+}
+
+function instComputeSummary(df,label){
+  // Calcular por técnico
+  const tecMap={};
+  df.forEach(r=>{
+    const tec=String(r['TÉCNICO']||r['TECNICO']||'').trim().toUpperCase();
+    if(!tec) return;
+    if(!tecMap[tec]) tecMap[tec]={instalaciones:0,tiempoCalc:0,tiempoReal:0,items:[]};
+    tecMap[tec].instalaciones++;
+    tecMap[tec].tiempoCalc+=parseFloat(r['TIEMPO CALCULADO ']||r['TIEMPO CALCULADO']||0)||0;
+    tecMap[tec].tiempoReal+=parseFloat(r['TIEMPO REAL']||0)||0;
+    tecMap[tec].items.push(r);
+  });
+  const tecnicos=Object.entries(tecMap).map(([nombre,d])=>{
+    const efect=d.tiempoReal>0?parseFloat(((d.tiempoCalc/d.tiempoReal)*100).toFixed(1)):100;
+    const diferencia=parseFloat((d.tiempoCalc-d.tiempoReal).toFixed(1));
+    return{nombre,instalaciones:d.instalaciones,tiempoCalc:d.tiempoCalc,tiempoReal:d.tiempoReal,diferencia,efect};
+  });
+  const totalCalc=tecnicos.reduce((s,t)=>s+t.tiempoCalc,0);
+  const totalReal=tecnicos.reduce((s,t)=>s+t.tiempoReal,0);
+  const totalEfect=totalReal>0?parseFloat(((totalCalc/totalReal)*100).toFixed(1)):100;
+  const totalInstalaciones=df.length;
+  return{label,totalInstalaciones,totalCalc,totalReal,totalEfect,tecnicos,items:df};
+}
+
+async function instLoadSaved(){
+  if(!window._fb){ window.addEventListener('firebaseReady',instLoadSaved,{once:true}); return; }
+  try{
+    const weeks=sortWeeks(await window._fb.getInstalacion());
+    instRenderSaved(weeks);
+  }catch(e){ console.error(e); }
+}
+
+function instRenderSaved(weeks){
+  const section=document.getElementById('instSavedSection');
+  const list=document.getElementById('instSavedList');
+  const btnEvol=document.getElementById('instBtnEvolucion');
+  if(!section||!list) return;
+  list.innerHTML='';
+  if(!weeks.length){section.style.display='none';return;}
+  section.style.display='block';
+  if(btnEvol) btnEvol.style.display=weeks.length>1?'flex':'none';
+  // Group by mes
+  const byMes={};
+  weeks.forEach(w=>{const m=w.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(w);});
+  const mesesOrdenados=Object.keys(byMes).sort((a,b)=>{
+    const aD=Math.min(...byMes[a].map(w=>extractStartDate(w.label)));
+    const bD=Math.min(...byMes[b].map(w=>extractStartDate(w.label)));
+    return bD-aD;
+  });
+  mesesOrdenados.forEach(mes=>{
+    const fId=`inst-folder-${mes.replace(/\s+/g,'-')}`;
+    const folder=document.createElement('div');
+    folder.style.cssText='margin-bottom:4px;';
+    folder.innerHTML=`
+      <div onclick="toggleFolder('${fId}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--navy);border-radius:8px;cursor:pointer;user-select:none;">
+        <span id="${fId}-icon" style="font-size:13px;">📁</span>
+        <span style="flex:1;font-size:13px;font-weight:600;color:white;">${mes}</span>
+        <span style="font-size:11px;color:rgba(255,255,255,.5);">${byMes[mes].length} semana(s)</span>
+        <span id="${fId}-arrow" style="color:rgba(255,255,255,.5);font-size:11px;">▾</span>
+      </div>
+      <div id="${fId}" style="padding-left:12px;margin-top:4px;">
+        ${sortWeeks(byMes[mes]).map(w=>`
+          <div class="saved-week-item" style="margin-bottom:4px;">
+            <div style="flex:1">
+              <div class="saved-week-label">📄 ${w.label}</div>
+              <div class="saved-week-sub">${w.totalInstalaciones} instalaciones · Efect. ${w.totalEfect}%</div>
+            </div>
+            <button class="btn-view-week" onclick='instBuildDashboard(${JSON.stringify(w).replace(/'/g,"&#39;")})'>Ver →</button>
+            <button class="btn-del-week" onclick='instDelete("${w.id}")'>✕</button>
+          </div>`).join('')}
+      </div>`;
+    list.appendChild(folder);
+  });
+}
+
+async function instDelete(id){
+  if(!confirm('¿Eliminar esta semana?')) return;
+  await window._fb.deleteInstalacion(id);
+  const weeks=sortWeeks(await window._fb.getInstalacion());
+  instRenderSaved(weeks);
+}
+
+function instBuildDashboard(w){
+  document.getElementById('instUploadScreen').style.display='none';
+  document.getElementById('instEvolucionScreen').style.display='none';
+  document.getElementById('instDashboard').style.display='block';
+  document.getElementById('instPeriod').textContent=w.label;
+  document.getElementById('instTopPeriod').textContent=w.label;
+
+  // KPIs
+  const efColor=w.totalEfect>=100?'green':w.totalEfect>=80?'teal':'purple';
+  document.getElementById('instKpiGrid').innerHTML=[
+    {cls:'navy',label:'Total instalaciones',value:w.totalInstalaciones,sub:'en la semana'},
+    {cls:efColor,label:'% Efectividad',value:w.totalEfect+'%',sub:'tiempo calculado / tiempo real'},
+    {cls:'teal',label:'Tiempo calculado',value:w.totalCalc+'hs',sub:'horas estimadas'},
+    {cls:'navy',label:'Tiempo real',value:w.totalReal+'hs',sub:'horas ejecutadas'},
+  ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
+
+  // Tabla técnicos
+  let tHTML='<thead><tr><th>Técnico</th><th>Instalaciones</th><th>Tiempo calc.</th><th>Tiempo real</th><th>Diferencia</th><th>% Efectividad</th></tr></thead><tbody>';
+  (w.tecnicos||[]).forEach((t,i)=>{
+    const bg=i%2===0?'':'background:var(--surface)';
+    const ef=t.efect;
+    const efC=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
+    const difC=t.diferencia>=0?'#1a7a56':'#c0392b';
+    tHTML+=`<tr style="${bg}"><td><strong>${t.nombre}</strong></td><td>${t.instalaciones}</td><td>${t.tiempoCalc}hs</td><td>${t.tiempoReal}hs</td><td style="color:${difC};font-weight:600;">${t.diferencia>=0?'+':''}${t.diferencia}hs</td><td style="color:${efC};font-weight:600;">${ef}%</td></tr>`;
+  });
+  document.getElementById('instTablaTecnicos').innerHTML=tHTML+'</tbody>';
+
+  // Tabla detalle instalaciones
+  let dHTML='<thead><tr><th>Abonado</th><th>Nombre</th><th>Tipo</th><th>Instalación</th><th>Técnico</th><th>T. Calc.</th><th>T. Real</th><th>Diferencia</th><th>Observaciones</th></tr></thead><tbody>';
+  (w.items||[]).forEach((r,i)=>{
+    const bg=i%2===0?'':'background:var(--surface)';
+    const calc=parseFloat(r['TIEMPO CALCULADO ']||r['TIEMPO CALCULADO']||0)||0;
+    const real=parseFloat(r['TIEMPO REAL']||0)||0;
+    const dif=parseFloat(r['DIFERENCIA']||0)||0;
+    const difC=dif>=0?'#1a7a56':'#c0392b';
+    const obs=r[Object.keys(r).find(k=>!['SEMANA','ABONADO','NOMBRE','TIPO','INSTALACION ','INSTALACION','TÉCNICO','TECNICO','TIEMPO CALCULADO ','TIEMPO CALCULADO','TIEMPO REAL','DIFERENCIA'].includes(k))]||'';
+    dHTML+=`<tr style="${bg}"><td>${r['ABONADO']||'—'}</td><td>${r['NOMBRE']||'—'}</td><td>${r['TIPO']||'—'}</td><td>${r['INSTALACION ']||r['INSTALACION']||'—'}</td><td>${r['TÉCNICO']||r['TECNICO']||'—'}</td><td>${calc}hs</td><td>${real}hs</td><td style="color:${difC};font-weight:600;">${dif>=0?'+':''}${dif}hs</td><td style="font-size:11px;color:${obs?'#b5870a':'var(--text-muted)'};">${obs||'—'}</td></tr>`;
+  });
+  document.getElementById('instTablaDetalle').innerHTML=dHTML+'</tbody>';
+}
+
+// ── INSTALACIÓN EVOLUCIÓN ──
+let _instAllWeeks=[];
+let _instMesActivo='todos';
+
+async function instShowEvolucion(){
+  if(!window._fb) return;
+  document.getElementById('instDashboard').style.display='none';
+  document.getElementById('instUploadScreen').style.display='none';
+  document.getElementById('instEvolucionScreen').style.display='block';
+  _instAllWeeks=sortWeeks(await window._fb.getInstalacion());
+  if(!_instAllWeeks.length) return;
+  _instMesActivo='todos';
+  instRenderMesTabs();
+  instRenderEvolucion();
+}
+
+function instRenderMesTabs(){
+  const mesesRaw=[...new Set(_instAllWeeks.map(w=>w.mes||'Sin clasificar'))];
+  const mesesOrdenados=mesesRaw.sort((a,b)=>{
+    const aD=Math.min(..._instAllWeeks.filter(w=>(w.mes||'Sin clasificar')===a).map(w=>extractStartDate(w.label)));
+    const bD=Math.min(..._instAllWeeks.filter(w=>(w.mes||'Sin clasificar')===b).map(w=>extractStartDate(w.label)));
+    return aD-bD;
+  });
+  const meses=['todos',...mesesOrdenados];
+  const tabs=document.getElementById('instMesTabs');
+  tabs.innerHTML=meses.map(m=>`
+    <button onclick="instSetMes('${m}')"
+      style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);font-size:12px;
+      font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .15s;
+      background:${m===_instMesActivo?'var(--navy)':'var(--white)'};
+      color:${m===_instMesActivo?'white':'var(--text)'};">
+      ${m==='todos'?'📊 Todos los meses':'📁 '+m}
+    </button>`).join('');
+}
+
+function instSetMes(mes){ _instMesActivo=mes; instRenderMesTabs(); instRenderEvolucion(); }
+
+function instRenderEvolucion(){
+  const weeks=_instMesActivo==='todos'?_instAllWeeks:_instAllWeeks.filter(w=>(w.mes||'Sin clasificar')===_instMesActivo);
+  if(!weeks.length) return;
+  document.getElementById('instEvolBadge').textContent=_instMesActivo==='todos'?'Todas las semanas':_instMesActivo;
+  const labels=weeks.map(w=>w.label);
+  const tecNames=[...new Set(weeks.flatMap(w=>(w.tecnicos||[]).map(t=>t.nombre)))];
+  const colors=['#2e6da4','#e8a04a','#c0392b','#1a7a56','#5340b8'];
+
+  destroyChart('instEvol');
+  charts['instEvol']=new Chart(document.getElementById('instChartEvol'),{
+    type:'line',
+    data:{labels, datasets:tecNames.map((t,i)=>({
+      label:t,
+      data:weeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec?tec.efect:null;}),
+      borderColor:colors[i%colors.length],backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{callback:v=>v+'%'}}}}
+  });
+
+  // Tabla evolución
+  let html='';
+  if(_instMesActivo==='todos'){
+    const byMes={};
+    weeks.forEach(w=>{const m=w.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(w);});
+    const mesesSorted=Object.keys(byMes).sort((a,b)=>extractStartDate(byMes[a][0].label)-extractStartDate(byMes[b][0].label));
+    html=`<thead><tr><th>Mes / Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
+    mesesSorted.forEach(mes=>{
+      const mW=sortWeeks(byMes[mes]);
+      const totInst=mW.reduce((s,w)=>s+w.totalInstalaciones,0);
+      html+=`<tr style="background:#1a3a5c !important;"><td colspan="${5+tecNames.length}" style="color:white;font-weight:600;background:#1a3a5c;">📁 ${mes}</td></tr>`;
+      mW.forEach((w,i)=>{
+        const bg=i%2===0?'':'background:var(--surface)';
+        const efC=w.totalEfect>=100?'#1a7a56':w.totalEfect>=80?'#1565a8':'#c0392b';
+        html+=`<tr style="${bg}"><td style="padding-left:20px;">↳ ${w.label}</td><td>${w.totalInstalaciones}</td><td>${w.totalCalc}hs</td><td>${w.totalReal}hs</td>`;
+        tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);html+=`<td style="text-align:center;">${tec?`<span style="color:${tec.efect>=100?'#1a7a56':tec.efect>=80?'#1565a8':'#c0392b'};font-weight:600;">${tec.efect}%</span>`:'—'}</td>`;});
+        html+=`<td style="color:${efC};font-weight:600;text-align:center;">${w.totalEfect}%</td></tr>`;
+      });
+    });
+  } else {
+    html=`<thead><tr><th>Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
+    weeks.forEach((w,i)=>{
+      const bg=i%2===0?'':'background:var(--surface)';
+      const efC=w.totalEfect>=100?'#1a7a56':w.totalEfect>=80?'#1565a8':'#c0392b';
+      html+=`<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.totalInstalaciones}</td><td>${w.totalCalc}hs</td><td>${w.totalReal}hs</td>`;
+      tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);html+=`<td style="text-align:center;">${tec?`<span style="color:${tec.efect>=100?'#1a7a56':tec.efect>=80?'#1565a8':'#c0392b'};font-weight:600;">${tec.efect}%</span>`:'—'}</td>`;});
+      html+=`<td style="color:${efC};font-weight:600;text-align:center;">${w.totalEfect}%</td></tr>`;
+    });
+  }
+  document.getElementById('instTablaEvol').innerHTML=html+'</tbody>';
+}
+
+document.addEventListener('DOMContentLoaded', instInitListeners);
+
 // Auth handles initialization via firebaseReady event
 </script>
 <!-- VEHÍCULOS SCREEN -->
@@ -2341,6 +2693,87 @@ function filtrarLog(tipo){
 
 </div>
 <!-- FIN VEHÍCULOS -->
+
+
+<!-- INSTALACIÓN SCREEN -->
+<div id="instalacionScreen" style="display:none;">
+<nav class="topbar">
+  <div class="topbar-brand">
+    <span class="topbar-title">INSTALACIÓN</span>
+  </div>
+  <div class="topbar-nav">
+    <span class="topbar-period" id="instTopPeriod">—</span>
+    <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
+  </div>
+</nav>
+
+<div id="instUploadScreen" style="min-height:calc(100vh - 56px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
+  <div class="upload-card">
+    <div class="upload-icon-wrap"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg></div>
+    <h2>Cargar Semanas · Instalación</h2>
+    <p>Subí uno o varios Excel semanales. Los datos se guardan en Firebase organizados por mes.</p>
+    <div class="dropzone" id="instDropzone">
+      <input type="file" id="instFileInput" accept=".xlsx,.xls" multiple />
+      <strong>Arrastrá los archivos aquí o hacé clic</strong>
+      <p>Podés subir múltiples semanas a la vez · .xlsx</p>
+    </div>
+    <div id="instConfigRows"></div>
+    <button class="btn-primary" id="instBtnGenerate" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+      Guardar en Firebase y ver dashboard
+    </button>
+    <div class="status" id="instStatusMsg"></div>
+    <div id="instSavedSection" style="display:none;margin-top:1.5rem;border-top:1px solid var(--border);padding-top:1.25rem;text-align:left;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:.75rem;">Semanas guardadas en Firebase</div>
+      <div id="instSavedList"></div>
+      <button class="btn-secondary" id="instBtnEvolucion" style="margin-top:.75rem;width:100%;justify-content:center;display:none;">
+        📈 Ver evolución de todas las semanas →
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="instDashboard" style="display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
+  <div class="dash-header">
+    <div>
+      <h1>Reporte de Instalación</h1>
+      <span class="period-badge" id="instPeriod"></span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" id="instBtnReset">← Cargar otra semana</button>
+      <button class="btn-secondary" id="instBtnVerEvol">📈 Ver evolución</button>
+    </div>
+  </div>
+  <div class="section-label">Indicadores clave</div>
+  <div class="kpi-grid" id="instKpiGrid"></div>
+  <div class="section-label">Detalle por técnico</div>
+  <div class="table-card-full"><h3>Resumen por técnico</h3><table class="dt" id="instTablaTecnicos"></table></div>
+  <div class="section-label">Detalle de instalaciones</div>
+  <div class="table-card-full" style="overflow-x:auto;"><h3>Instalaciones de la semana</h3><table class="dt" id="instTablaDetalle"></table></div>
+</div>
+
+<div id="instEvolucionScreen" style="display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
+  <div class="dash-header">
+    <div>
+      <h1>Evolución · Instalación</h1>
+      <span class="period-badge" id="instEvolBadge">Todas las semanas</span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn-secondary" onclick="instShowUpload()">← Volver</button>
+    </div>
+  </div>
+  <div style="margin-bottom:1.5rem;">
+    <div class="section-label">Filtrar por período</div>
+    <div id="instMesTabs" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+  <div class="chart-full">
+    <h3>% Efectividad · Instalación</h3>
+    <div style="position:relative;height:280px;"><canvas id="instChartEvol"></canvas></div>
+  </div>
+  <div class="section-label">Comparativa semanal</div>
+  <div class="table-card-full"><h3>Resumen por semana</h3><table class="dt" id="instTablaEvol"></table></div>
+</div>
+</div><!-- fin instalacionScreen -->
 
 <!-- MODAL LOG ACCESOS -->
 <div id="modalAccesos" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
