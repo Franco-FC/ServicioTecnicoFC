@@ -133,19 +133,19 @@
   .home-hero h1 span{color:var(--accent);}
   .home-hero>p{font-size:15px;color:rgba(255,255,255,.5);margin-bottom:3rem;max-width:420px;}
   .home-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:980px;width:100%;}
-  .home-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:2rem 1.5rem;cursor:pointer;transition:all .2s;text-align:left;}
+  .home-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:2rem 1.5rem;cursor:pointer;transition:all .2s;text-align:left;display:flex;flex-direction:column;min-height:180px;}
   .home-card:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);transform:translateY(-2px);}
   .home-card.available:hover{border-color:var(--accent);}
-  .home-card-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;}
-  .home-card-icon svg{width:22px;height:22px;}
+  .home-card-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem;background:var(--accent);}
+  .home-card-icon svg{width:22px;height:22px;fill:white;}
   .home-card.servtec .home-card-icon{background:var(--accent);}
-  .home-card.servtec .home-card-icon svg{fill:var(--navy);}
+  .home-card.servtec .home-card-icon svg{fill:white;}
   .home-card.instalacion .home-card-icon,.home-card.fidelizacion .home-card-icon{background:var(--accent);}
-  .home-card.instalacion .home-card-icon svg,.home-card.fidelizacion .home-card-icon svg{fill:rgba(255,255,255,.4);}
+  .home-card.instalacion .home-card-icon svg,.home-card.fidelizacion .home-card-icon svg{fill:white;}
   .home-card h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:white;margin-bottom:6px;}
   .home-card p{font-size:13px;color:rgba(255,255,255,.45);line-height:1.5;}
   .coming-soon{display:inline-block;margin-top:1rem;font-size:10px;font-weight:600;letter-spacing:.08em;background:rgba(255,255,255,.08);color:rgba(255,255,255,.35);padding:3px 10px;border-radius:20px;text-transform:uppercase;}
-  .arrow{display:inline-block;margin-top:1rem;font-size:11px;font-weight:600;color:var(--accent);}
+  .arrow{display:inline-block;margin-top:auto;padding-top:1rem;font-size:11px;font-weight:600;color:var(--accent);}
   .home-footer{padding:1.5rem 2.5rem;text-align:center;font-size:12px;color:rgba(255,255,255,.2);}
 
   /* TOPBAR */
