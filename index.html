@@ -2662,9 +2662,16 @@ async function vehEstadoLoad(){
   if(!window._fb) return;
   try{
     const data = await window._fb.getEstadoVehiculos();
-    _vehEstadoData = data ? data.rows : JSON.parse(JSON.stringify(VEH_ESTADO_DEFAULT));
+    if(data && data.rows){
+      // Convert objects back to arrays
+      _vehEstadoData = data.rows.map(obj=>
+        VEH_ESTADO_COLS.map((_,i)=>obj['c'+i]||'—')
+      );
+    } else {
+      _vehEstadoData = JSON.parse(JSON.stringify(VEH_ESTADO_DEFAULT));
+    }
     vehEstadoRender();
-  }catch(e){ 
+  }catch(e){
     _vehEstadoData = JSON.parse(JSON.stringify(VEH_ESTADO_DEFAULT));
     vehEstadoRender();
   }
@@ -2744,8 +2751,13 @@ async function vehEstadoSave(){
   const msg = document.getElementById('vehEstadoSaveMsg');
   if(btn){ btn.disabled=true; btn.textContent='Guardando...'; }
   try{
-    const payload = {rows: JSON.parse(JSON.stringify(_vehEstadoData)), updatedAt: Date.now()};
-    await window._fb.saveEstadoVehiculos(payload);
+    // Convert array-of-arrays to array-of-objects (Firestore doesn't support nested arrays)
+    const rows = _vehEstadoData.map(row=>{
+      const obj={};
+      VEH_ESTADO_COLS.forEach((col,i)=>{ obj['c'+i]=row[i]!=null?String(row[i]):''; });
+      return obj;
+    });
+    await window._fb.saveEstadoVehiculos({rows, updatedAt: Date.now()});
     if(msg){ msg.style.display='inline'; msg.style.color='var(--green)'; msg.textContent='✓ Guardado correctamente'; setTimeout(()=>msg.style.display='none', 3000); }
   }catch(e){
     console.error('save error:', e);
