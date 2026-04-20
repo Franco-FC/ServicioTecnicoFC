@@ -2646,24 +2646,51 @@ document.addEventListener('DOMContentLoaded', instInitListeners);
 
 // ── ESTADO MENSUAL DE VEHÍCULOS (tabla editable) ──
 const VEH_ESTADO_COLS = ['Vehículos','Matafuego','Botiquín','Cubiertas','Service','Revisión correa','VTV'];
+// Mapa patente → clave de búsqueda en los excels mensuales
+const VEH_PATENTE_MAP = {
+  'AE676CM': 'AE676CM',
+  'AF084CM': 'AF084CM',
+  'AF441MK': 'AF441MK',
+  'AG742WI': 'AG742WI',
+  'A173MDG': 'A173MDG',
+  'KYMCO':   'KYMCO',
+  'G.E.':    null, // generador, no tiene km
+};
 const VEH_ESTADO_DEFAULT = [
-  ['Kangoo AF441MK','✔','✔','rotar 22.000 km','prox 31.500km o Febrero 27','200.000 km','07/08/2026'],
-  ['Kangoo AE676CM','✔','✔','rotar 45.000 km','prox 45.000km o Febrero 27','200.000 km','17/04/2027'],
-  ['Kangoo AF084CM','✔','✔','rotar 48.000 km','prox 48.000km o Febrero 27','200.000 km','—'],
-  ['Kangoo Comercial','✔','✔','rotar 10.000 km','prox 15.000km o Agosto 26','200.000 km','01/09/2029'],
+  ['AE676CM','✔','✔','rotar 45.000 km','prox 45.000km o Febrero 27','200.000 km','17/04/2027'],
+  ['AF084CM','✔','✔','rotar 48.000 km','prox 48.000km o Febrero 27','200.000 km','—'],
+  ['AF441MK','✔','✔','rotar 22.000 km','prox 31.500km o Febrero 27','200.000 km','07/08/2026'],
+  ['AG742WI','✔','✔','—','prox 15.000km o Agosto 26','200.000 km','01/09/2029'],
   ['A173MDG','—','✔','✔','prox 16.000 o Mayo 26','—','—'],
-  ['Kymco 110','X','X','X','X','X','X'],
+  ['KYMCO','X','X','X','X','X','X'],
   ['G.E.','—','—','—','Mayo 2026','—','—'],
 ];
 
 let _vehEstadoData = null;
+
+// Obtiene el último km registrado para una patente desde los docs mensuales
+function vehGetUltimoKm(patente){
+  if(!patente || !_vehAllDocs || !_vehAllDocs.length) return '—';
+  // Find most recent doc that has this patente
+  const sorted = [..._vehAllDocs].sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  for(const doc of sorted){
+    const v = (doc.vehiculos||[]).find(x=>
+      String(x['Patente']||'').toUpperCase().includes(patente.toUpperCase()) ||
+      patente.toUpperCase().includes(String(x['Patente']||'').replace(/[^A-Z0-9]/gi,'').toUpperCase())
+    );
+    if(v && v['Kilometraje Actual']){
+      const km = parseFloat(v['Kilometraje Actual']);
+      if(!isNaN(km)) return km.toLocaleString('es-AR') + ' km';
+    }
+  }
+  return '—';
+}
 
 async function vehEstadoLoad(){
   if(!window._fb) return;
   try{
     const data = await window._fb.getEstadoVehiculos();
     if(data && data.rows){
-      // Convert objects back to arrays
       _vehEstadoData = data.rows.map(obj=>
         VEH_ESTADO_COLS.map((_,i)=>obj['c'+i]||'—')
       );
@@ -2683,16 +2710,24 @@ function vehEstadoRender(){
 
   const thStyle = 'padding:8px 12px;background:#0f2540;color:white;font-size:11px;font-weight:600;text-align:left;white-space:nowrap;border:1px solid #1a3a5c;';
   const tdStyle = (i) => `padding:0;border:1px solid var(--border);background:${i%2===0?'white':'var(--surface)'};`;
+  const tdReadStyle = (i) => `padding:7px 10px;border:1px solid var(--border);background:${i%2===0?'#f0f4f8':'#e8edf2'};color:#1565a8;font-weight:600;font-size:12px;white-space:nowrap;`;
 
-  let html = `<thead><tr>${VEH_ESTADO_COLS.map(c=>`<th style="${thStyle}">${c}</th>`).join('')}<th style="${thStyle}">Acciones</th></tr></thead><tbody>`;
+  let html = `<thead><tr>
+    ${VEH_ESTADO_COLS.map(c=>`<th style="${thStyle}">${c}</th>`).join('')}
+    <th style="${thStyle};background:#1a3a5c;">Último Km</th>
+    <th style="${thStyle}">Acciones</th>
+  </tr></thead><tbody>`;
+
   _vehEstadoData.forEach((row, ri)=>{
+    const patente = String(row[0]||'').trim();
+    const ultimoKm = vehGetUltimoKm(patente);
     html += `<tr>`;
     VEH_ESTADO_COLS.forEach((col, ci)=>{
       const val = row[ci]!=null ? String(row[ci]) : '—';
       const isCheck = val==='✔'||val==='X';
       const color = val==='✔'?'#1a7a56':val==='X'?'#c0392b':'inherit';
       html += `<td style="${tdStyle(ri)}">
-        <div contenteditable="true" 
+        <div contenteditable="true"
           data-row="${ri}" data-col="${ci}"
           oninput="vehEstadoCellEdit(${ri},${ci},this.textContent)"
           style="padding:7px 10px;min-width:80px;outline:none;color:${color};font-weight:${isCheck?'700':'400'};cursor:text;"
@@ -2700,6 +2735,8 @@ function vehEstadoRender(){
         >${val}</div>
       </td>`;
     });
+    // Ultimo Km - not editable
+    html += `<td style="${tdReadStyle(ri)}" title="Tomado del último mes cargado">${ultimoKm}</td>`;
     html += `<td style="${tdStyle(ri)}padding:4px 8px;text-align:center;white-space:nowrap;">
       <button onclick="vehEstadoDelRow(${ri})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px 6px;" title="Eliminar fila">✕</button>
     </td></tr>`;
