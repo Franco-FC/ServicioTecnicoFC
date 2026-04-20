@@ -111,7 +111,7 @@
     getInstalacion:   async () => { const s = await db.collection('semanas_instalacion').orderBy('timestamp','asc').get(); return s.docs.map(d=>({id:d.id,...d.data()})); },
     deleteInstalacion:(id)   => db.collection('semanas_instalacion').doc(id).delete(),
     getEstadoVehiculos: async () => { const s = await db.collection('estado_vehiculos').doc('tabla').get(); return s.exists ? s.data() : null; },
-    saveEstadoVehiculos: (data) => db.collection('estado_vehiculos').doc('tabla').set(data),
+    saveEstadoVehiculos: async (data) => { await db.collection('estado_vehiculos').doc('tabla').set({...data, updatedAt: Date.now()}); },
   };
 </script>
 <style>
@@ -2191,10 +2191,17 @@ function vehRenderEvolucion(mes){
   const docs = _vehAllDocs;
   if(!docs.length) return;
 
-  // Build mes tabs
+  // Build mes tabs - sort by calendar month/year
+  function mesToDate(m){
+    const meses={'enero':0,'febrero':1,'marzo':2,'abril':3,'mayo':4,'junio':5,
+      'julio':6,'agosto':7,'septiembre':8,'octubre':9,'noviembre':10,'diciembre':11};
+    const parts=m.toLowerCase().split(' ');
+    const mon=meses[parts[0]];
+    const yr=parseInt(parts[1])||2026;
+    return mon!==undefined ? new Date(yr,mon,1) : new Date(0);
+  }
   const meses = [...new Set(docs.map(d=>d.mes||'Sin clasificar'))].sort((a,b)=>
-    Math.min(...docs.filter(d=>(d.mes||'Sin clasificar')===a).map(d=>d.timestamp||0)) -
-    Math.min(...docs.filter(d=>(d.mes||'Sin clasificar')===b).map(d=>d.timestamp||0))
+    mesToDate(a)-mesToDate(b)
   );
   const tabsEl = document.getElementById('vehEvolMesTabs');
   if(tabsEl){
@@ -2208,7 +2215,8 @@ function vehRenderEvolucion(mes){
       </button>`).join('');
   }
 
-  const filtered = mes==='todos' ? docs : docs.filter(d=>(d.mes||'Sin clasificar')===mes);
+  const filtered = (mes==='todos' ? docs : docs.filter(d=>(d.mes||'Sin clasificar')===mes))
+    .slice().sort((a,b)=>mesToDate(a.mes||'')-mesToDate(b.mes||''));
   const labels = filtered.map(d=>d.mes||'Sin clasificar');
   document.getElementById('vehEvolBadge').textContent = mes==='todos'?'Todos los meses':mes;
 
@@ -2730,12 +2738,18 @@ function vehEstadoAddRow(){
 function vehEstadoAutoSave(){
   clearTimeout(_vehEstadoSaveTimeout);
   _vehEstadoSaveTimeout = setTimeout(async ()=>{
+    if(!window._fb){ console.warn('Firebase not ready'); return; }
     try{
-      await window._fb.saveEstadoVehiculos({rows:_vehEstadoData, updatedAt:Date.now()});
+      const payload = {rows: JSON.parse(JSON.stringify(_vehEstadoData)), updatedAt: Date.now()};
+      await window._fb.saveEstadoVehiculos(payload);
       const msg = document.getElementById('vehEstadoSaveMsg');
-      if(msg){ msg.style.display='inline'; setTimeout(()=>msg.style.display='none', 2000); }
-    }catch(e){ console.error('save error:',e); }
-  }, 800);
+      if(msg){ msg.style.display='inline'; msg.textContent='✓ Guardado'; setTimeout(()=>msg.style.display='none', 2000); }
+    }catch(e){ 
+      console.error('save error:', e);
+      const msg = document.getElementById('vehEstadoSaveMsg');
+      if(msg){ msg.style.display='inline'; msg.style.color='var(--red)'; msg.textContent='Error al guardar'; setTimeout(()=>{msg.style.display='none';msg.style.color='var(--green)';}, 3000); }
+    }
+  }, 1000);
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
