@@ -628,6 +628,14 @@ function toggleDetail(id){
   btn.innerHTML=open?'Cerrar ▴':`Ver ${el.children.length} servicios ▾`;
 }
 
+function toggleObs(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const btn=el.previousElementSibling;
+  const open=el.classList.toggle('open');
+  if(btn) btn.innerHTML = open ? '📝 ▴' : '📝 ▾';
+}
+
 function goTo(s){
   document.getElementById('homeScreen').style.display=s==='home'?'flex':'none';
   document.getElementById('servtecScreen').style.display=s==='servtec'?'block':'none';
@@ -1074,7 +1082,7 @@ function buildDashboard(w){
   });
 
   let rowId=0;
-  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Tiempo</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th><th>Observaciones</th></tr></thead><tbody>';
+  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Tiempo</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
   w.tecnicos.forEach(t=>{
     const jornada=t.ots-t.g_tec-t.g_cerr;
     const isExcl = t.nombre==='Asignacion Interna' || t.puntaje==null || t.efect==null;
@@ -1088,16 +1096,24 @@ function buildDashboard(w){
     const detalle=srvs.map(([s,c])=>{const cf=getCoef(s);const pts=cf!==null?(cf*c).toFixed(2):'—';return`<div class="srv-item"><span class="srv-name">${s}</span><span class="badge">${c}</span><span class="srv-pts">${pts}</span></div>`;}).join('');
     const btn=`<div class="srv-detail-wrap"><button class="btn-desplegable" onclick="toggleDetail('${id}')">Ver ${srvs.length} servicios ▾</button><div class="srv-detail" id="${id}">${detalle}</div></div>`;
     const puntajeCell = isExcl ? '—' : '<strong>'+t.puntaje.toFixed(2)+'</strong>';
-    // Cap al 100% también en display, por si una semana histórica tiene efect>100 guardado
-    const efectCell   = isExcl ? '—' : '<strong>'+Math.min(100,t.efect).toFixed(1)+'%</strong>';
-    // Observaciones: texto del técnico, o "Sin observaciones" en cursiva tenue si vacío
-    const obsTxt = (t.observacion||'').trim();
-    const obsCell = obsTxt
-      ? `<span style="display:inline-block;max-width:240px;white-space:normal;word-break:break-word;font-size:13px;">${escHTML(obsTxt)}</span>`
-      : `<span style="color:var(--text-muted,#888);font-style:italic;font-size:12px;">Sin observaciones</span>`;
-    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${tiempoTxt}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${puntajeCell}</td><td>${efectCell}</td><td>${obsCell}</td></tr>`;
+    // % Efectividad: con color por umbral (verde ≥90, azul 70-90, rojo <70) y botón obs si hay observación
+    let efectCell;
+    if(isExcl){
+      efectCell = '—';
+    } else {
+      const ef = Math.min(100, t.efect);
+      const color = ef>=90 ? '#1a7a56' : ef>=70 ? '#1565a8' : '#c0392b';
+      const obsTxt = (t.observacion||'').trim();
+      let obsBtn = '';
+      if(obsTxt){
+        const oid = `obs-detail-${rowId}`;
+        obsBtn = `<span class="srv-detail-wrap" style="margin-left:6px;"><button class="btn-desplegable" style="padding:2px 6px;font-size:11px;" title="Ver observación" onclick="toggleObs('${oid}')">📝 ▾</button><div class="srv-detail" id="${oid}" style="min-width:220px;text-align:left;font-style:italic;font-size:12px;">${escHTML(obsTxt)}</div></span>`;
+      }
+      efectCell = `<span style="display:inline-flex;align-items:center;"><strong style="color:${color};">${ef.toFixed(1)}%</strong>${obsBtn}</span>`;
+    }
+    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${tiempoTxt}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${puntajeCell}</td><td>${efectCell}</td></tr>`;
   });
-  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
   document.getElementById('tablaTecnicos').innerHTML=tHTML+'</tbody>';
 
   destroyChart('servicios');
@@ -1683,7 +1699,7 @@ const TECNICOS_CONFIG = [
   { nombre: 'Ariel Sandoval',    areas: ['st'],        color: '#e8a04a' },
   { nombre: 'Mauricio Gonzales', areas: ['st','fidel'],color: '#1a7a56' },
   { nombre: 'Gonzalo Rodriguez', areas: ['st'],        color: '#5340b8' },
-  { nombre: 'Marcos Martin',     areas: ['st'],        color: '#c0392b' },
+  { nombre: 'Marcos Martin',     areas: ['instalacion'],color: '#c0392b' },
   { nombre: 'Lucas Espinosa',    areas: ['instalacion'],color:'#0f2540' },
   { nombre: 'Ezequiel Wagner',   areas: ['instalacion'],color:'#7b5ea7' },
   { nombre: 'Cristian Biglia',   areas: ['instalacion'],color:'#3d7a8a' },
@@ -1725,7 +1741,7 @@ function renderResumen(){
   const sortedLabels = allLabels.sort((a,b)=>extractStartDate(a)-extractStartDate(b));
 
   // Columnas ST (incluye Mauricio)
-  const stCols = ['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Gonzalo Rodriguez','Marcos Martin'];
+  const stCols = ['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Gonzalo Rodriguez'];
   // Columnas Fidelizacion (incluye Mauricio)
   const fidelCols = ['Mauricio Gonzales'];
   // Columnas Instalacion — real data now
@@ -1734,7 +1750,7 @@ function renderResumen(){
   function efCell(ef, pending){
     if(pending) return `<td style="text-align:center;color:var(--text-muted);font-size:11px;font-style:italic;">—</td>`;
     if(ef==null) return `<td style="text-align:center;color:var(--text-muted);">—</td>`;
-    const c=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
+    const c=ef>=90?'#1a7a56':ef>=70?'#1565a8':'#c0392b';
     return `<td style="text-align:center;font-weight:600;color:${c};">${ef}%</td>`;
   }
 
@@ -1823,7 +1839,7 @@ function renderResumen(){
   document.getElementById('resumenTabla').innerHTML=html+'</tbody>';
 
   // ── GRÁFICO ST con checkboxes ──
-  const stColores={'Santiago Munhoz':'#2e6da4','Ariel Sandoval':'#e8a04a','Mauricio Gonzales':'#1a7a56','Gonzalo Rodriguez':'#5340b8','Marcos Martin':'#c0392b'};
+  const stColores={'Santiago Munhoz':'#2e6da4','Ariel Sandoval':'#e8a04a','Mauricio Gonzales':'#1a7a56','Gonzalo Rodriguez':'#5340b8'};
 
   // Render checkboxes
   const filtrosEl = document.getElementById('stTecFiltros');
