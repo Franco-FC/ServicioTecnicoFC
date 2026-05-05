@@ -783,10 +783,18 @@ function handleFiles(files){
 function renderConfig(i,name,count){
   const div=document.createElement('div');
   div.className='file-item';
+  const horasInputs = TECNICOS_HORAS_MANUAL.map(tec=>{
+    const corto = tec.label.split(' ')[0];
+    return `<label style="margin-left:10px;">${corto}&nbsp;</label><input type="number" min="0" max="80" step="0.5" id="horas_${tec.key}_${i}" style="width:65px;" placeholder="hs" />`;
+  }).join('');
   div.innerHTML=`<span class="file-item-name">📄 ${name} <span style="color:var(--text-muted);font-weight:400;">(${count} OTs)</span></span>
     <label>Mes/Año&nbsp;</label><input type="text" id="mes_${i}" placeholder="ej: Marzo 2026" />
     <label>&nbsp;OTs generadas&nbsp;</label><input type="number" id="otGen_${i}" placeholder="ej: 212" />
-    <label>&nbsp;Período&nbsp;</label><input type="text" id="label_${i}" placeholder="Semana 2 · 09/03" />`;
+    <label>&nbsp;Período&nbsp;</label><input type="text" id="label_${i}" placeholder="Semana 2 · 09/03" />
+    <div style="flex-basis:100%;margin-top:10px;padding-top:10px;border-top:1px dashed var(--text-muted,#aaa);display:flex;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:12px;color:var(--text-muted,#666);font-weight:600;">⏱ Horas trabajadas en la semana:</span>
+      ${horasInputs}
+    </div>`;
   document.getElementById('configRows').appendChild(div);
 }
 
@@ -814,7 +822,12 @@ document.addEventListener('DOMContentLoaded', function(){
         const otGen=parseInt(document.getElementById(`otGen_${i}`)?.value)||df.length;
         const label=document.getElementById(`label_${i}`)?.value||`Semana ${i+1}`;
         const mes=document.getElementById(`mes_${i}`)?.value||'Sin clasificar';
-        const summary=computeSummary(df,otGen,label);
+        const horasManuales={};
+        TECNICOS_HORAS_MANUAL.forEach(tec=>{
+          const v=parseFloat(document.getElementById(`horas_${tec.key}_${i}`)?.value);
+          horasManuales[tec.key]=isNaN(v)?null:v;
+        });
+        const summary=computeSummary(df,otGen,label,horasManuales);
         await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
       }
       if(sMsg()){sMsg().className='status ok';sMsg().textContent='✓ Guardado en Firebase correctamente';}
@@ -914,7 +927,16 @@ async function deleteWeek(id){
 }
 
 // ── COMPUTE SUMMARY ──
-function computeSummary(df,otGen,label){
+// Técnicos a los que se les pide horas trabajadas manualmente al cargar el Excel.
+// El "match" se busca como substring case-insensitive contra el campo Tecnico del Excel.
+const TECNICOS_HORAS_MANUAL = [
+  { key: 'santiago', label: 'Santiago Munhoz',   match: ['santiago'] },
+  { key: 'ariel',    label: 'Ariel Sandoval',    match: ['ariel'] },
+  { key: 'gonzalo',  label: 'Gonzalo Rodriguez', match: ['gonzalo'] },
+  { key: 'mauricio', label: 'Mauricio Gonzalez', match: ['mauricio'] }
+];
+
+function computeSummary(df,otGen,label,horasManuales){
   const TECNICOS_VALIDOS = ['Santiago Munhoz','Ariel Sandoval','Cerrajeria Aleluya','Mauricio Gonzales','Gonzalo Rodriguez','Mauricio Gonzalez'];
   const total=df.length;
   const conTec=df.filter(r=>r['Tecnico']&&String(r['Tecnico']).trim()!=='');
@@ -943,9 +965,34 @@ function computeSummary(df,otGen,label){
     .sort((a,b)=>b[1]-a[1]).map(([t,n])=>{
       const st=tecStats[t]||{dias:new Set(),g_tec:0,g_cerr:0};
       const dias=st.dias.size||1;
-      const puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
-      const efect=parseFloat(((puntaje/(9*dias))*100).toFixed(1));
-      return{nombre:t,ots:n,dias,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
+      const tLow=t.toLowerCase();
+      // ¿Es Cerrajería Aleluya? → sin puntaje ni efectividad, sólo conteo de OTs
+      const esAleluya = tLow.includes('aleluya') || tLow.includes('cerrajeria');
+      // ¿Es uno de los 4 técnicos con horas manuales?
+      let horas = null;
+      if(horasManuales){
+        for(const tec of TECNICOS_HORAS_MANUAL){
+          if(tec.match.some(m=>tLow.includes(m))){
+            const h=horasManuales[tec.key];
+            if(h!=null && !isNaN(h) && Number(h)>0) horas=Number(h);
+            break;
+          }
+        }
+      }
+      let puntaje=null, efect=null;
+      if(esAleluya){
+        // Aleluya: sólo OTs, sin puntaje ni efectividad
+        puntaje=null; efect=null;
+      } else if(horas!=null){
+        // Técnico con horas manuales: efectividad = puntaje / horas × 100
+        puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
+        efect=parseFloat(((puntaje/horas)*100).toFixed(1));
+      } else {
+        // Fallback (técnico fuera de los 4, o no se ingresaron horas): cálculo viejo por días
+        puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
+        efect=parseFloat(((puntaje/(9*dias))*100).toFixed(1));
+      }
+      return{nombre:t,ots:n,dias,horas,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
     });
   const srvMap={};
   df.forEach(r=>{const s=r['Servicio'];if(s){const k=String(s).trim();srvMap[k]=(srvMap[k]||0)+1;}});
@@ -1005,18 +1052,23 @@ function buildDashboard(w){
   });
 
   let rowId=0;
-  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Días hábiles</th><th>OTs/día</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
+  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Tiempo</th><th>OTs/u</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
   w.tecnicos.forEach(t=>{
     const jornada=t.ots-t.g_tec-t.g_cerr;
-    const ppd=(jornada/t.dias).toFixed(1);
+    // Si la semana fue cargada con horas manuales (nuevo modelo), mostrarlas. Si no, días (histórico).
+    const tienenHoras = t.horas!=null && !isNaN(t.horas) && Number(t.horas)>0;
+    const tiempoTxt = tienenHoras ? `${t.horas} hs` : `${t.dias} d`;
+    const ppd = tienenHoras ? (jornada/t.horas).toFixed(2)+' /h' : (jornada/t.dias).toFixed(1)+' /d';
     const gtec=t.g_tec>0?`<span class="badge">${t.g_tec}</span>`:'—';
     const gcerr=t.g_cerr>0?`<span class="badge">${t.g_cerr}</span>`:'—';
     const srvs=Object.entries(t.srvMap||{}).sort((a,b)=>b[1]-a[1]);
     const id=`srv-detail-${rowId++}`;
     const detalle=srvs.map(([s,c])=>{const cf=getCoef(s);const pts=cf!==null?(cf*c).toFixed(2):'—';return`<div class="srv-item"><span class="srv-name">${s}</span><span class="badge">${c}</span><span class="srv-pts">${pts}</span></div>`;}).join('');
     const btn=`<div class="srv-detail-wrap"><button class="btn-desplegable" onclick="toggleDetail('${id}')">Ver ${srvs.length} servicios ▾</button><div class="srv-detail" id="${id}">${detalle}</div></div>`;
-    const isExcl=t.nombre==='Asignacion Interna';
-    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${t.dias}</td><td>${ppd}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${isExcl?'—':'<strong>'+t.puntaje.toFixed(2)+'</strong>'}</td><td>${isExcl?'—':'<strong>'+t.efect.toFixed(1)+'%</strong>'}</td></tr>`;
+    const isExcl = t.nombre==='Asignacion Interna' || t.puntaje==null || t.efect==null;
+    const puntajeCell = isExcl ? '—' : '<strong>'+t.puntaje.toFixed(2)+'</strong>';
+    const efectCell   = isExcl ? '—' : '<strong>'+t.efect.toFixed(1)+'%</strong>';
+    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${tiempoTxt}</td><td>${ppd}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${puntajeCell}</td><td>${efectCell}</td></tr>`;
   });
   tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
   document.getElementById('tablaTecnicos').innerHTML=tHTML+'</tbody>';
@@ -1081,7 +1133,7 @@ function buildDashboard(w){
   document.getElementById('btnDownload').onclick=()=>{
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['KPI','Valor'],['Total OTs',w.totalOTs],['% Finalizadas',w.pct],['Cerradas Of. Técnica',w.sinTec]]),'KPIs');
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Técnico','OTs','Puntaje','% Efect.'],...w.tecnicos.map(t=>[t.nombre,t.ots,t.puntaje,t.efect+'%'])]),'Técnicos');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Técnico','OTs','Puntaje','% Efect.'],...w.tecnicos.map(t=>[t.nombre,t.ots,t.puntaje??'—',t.efect!=null?t.efect+'%':'—'])]),'Técnicos');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Servicio','Cant.'],...w.topServicios.map(s=>[s.s,s.n])]),'Servicios');
     XLSX.writeFile(wb,`Dashboard_ST_${w.label.replace(/[\s\/]+/g,'_')}.xlsx`);
   };
@@ -1232,7 +1284,7 @@ function renderEvolucion(){
         html+=`<tr style="${bg}">
           <td style="padding-left:20px;">↳ ${w.label}</td>
           <td>${w.totalOTs}</td><td>${w.pct}</td>
-          ${tecNames.map(t=>{const f=w.tecnicos.find(x=>x.nombre===t);return`<td>${f?f.efect.toFixed(1)+'%':'—'}</td>`;}).join('')}
+          ${tecNames.map(t=>{const f=w.tecnicos.find(x=>x.nombre===t);return`<td>${f && f.efect!=null ? f.efect.toFixed(1)+'%' : '—'}</td>`;}).join('')}
           <td>${w.sinTec}</td>
         </tr>`;
       });
@@ -1243,7 +1295,7 @@ function renderEvolucion(){
     weeks.forEach((w,i)=>{
       const bg=i%2===0?'':'background:var(--surface)';
       html+=`<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.totalOTs}</td><td>${w.pct}</td>`;
-      tecNames.forEach(t=>{const f=w.tecnicos.find(x=>x.nombre===t);html+=`<td>${f?f.efect.toFixed(1)+'%':'—'}</td>`;});
+      tecNames.forEach(t=>{const f=w.tecnicos.find(x=>x.nombre===t);html+=`<td>${f && f.efect!=null ? f.efect.toFixed(1)+'%' : '—'}</td>`;});
       html+=`<td>${w.sinTec}</td></tr>`;
     });
   }
