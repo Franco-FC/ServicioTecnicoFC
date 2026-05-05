@@ -787,6 +787,10 @@ function renderConfig(i,name,count){
     const corto = tec.label.split(' ')[0];
     return `<label style="margin-left:10px;">${corto}&nbsp;</label><input type="number" min="0" max="80" step="0.5" id="horas_${tec.key}_${i}" style="width:65px;" placeholder="hs" />`;
   }).join('');
+  const obsInputs = TECNICOS_HORAS_MANUAL.map(tec=>{
+    const corto = tec.label.split(' ')[0];
+    return `<label style="margin-left:10px;font-size:12px;">${corto}&nbsp;</label><input type="text" id="obs_${tec.key}_${i}" style="width:170px;" placeholder="opcional" maxlength="300" />`;
+  }).join('');
   div.innerHTML=`<span class="file-item-name">📄 ${name} <span style="color:var(--text-muted);font-weight:400;">(${count} OTs)</span></span>
     <label>Mes/Año&nbsp;</label><input type="text" id="mes_${i}" placeholder="ej: Marzo 2026" />
     <label>&nbsp;OTs generadas&nbsp;</label><input type="number" id="otGen_${i}" placeholder="ej: 212" />
@@ -794,6 +798,10 @@ function renderConfig(i,name,count){
     <div style="flex-basis:100%;margin-top:10px;padding-top:10px;border-top:1px dashed var(--text-muted,#aaa);display:flex;flex-wrap:wrap;align-items:center;">
       <span style="font-size:12px;color:var(--text-muted,#666);font-weight:600;">⏱ Horas trabajadas en la semana:</span>
       ${horasInputs}
+    </div>
+    <div style="flex-basis:100%;margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:12px;color:var(--text-muted,#666);font-weight:600;">📝 Observaciones:</span>
+      ${obsInputs}
     </div>`;
   document.getElementById('configRows').appendChild(div);
 }
@@ -823,11 +831,14 @@ document.addEventListener('DOMContentLoaded', function(){
         const label=document.getElementById(`label_${i}`)?.value||`Semana ${i+1}`;
         const mes=document.getElementById(`mes_${i}`)?.value||'Sin clasificar';
         const horasManuales={};
+        const observaciones={};
         TECNICOS_HORAS_MANUAL.forEach(tec=>{
           const v=parseFloat(document.getElementById(`horas_${tec.key}_${i}`)?.value);
           horasManuales[tec.key]=isNaN(v)?null:v;
+          const obs=document.getElementById(`obs_${tec.key}_${i}`)?.value;
+          observaciones[tec.key]=(obs||'').trim();
         });
-        const summary=computeSummary(df,otGen,label,horasManuales);
+        const summary=computeSummary(df,otGen,label,horasManuales,observaciones);
         await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
       }
       if(sMsg()){sMsg().className='status ok';sMsg().textContent='✓ Guardado en Firebase correctamente';}
@@ -936,7 +947,12 @@ const TECNICOS_HORAS_MANUAL = [
   { key: 'mauricio', label: 'Mauricio Gonzalez', match: ['mauricio'] }
 ];
 
-function computeSummary(df,otGen,label,horasManuales){
+// Escape HTML básico para mostrar texto libre del usuario (observaciones) sin romper la tabla
+function escHTML(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function computeSummary(df,otGen,label,horasManuales,observaciones){
   const TECNICOS_VALIDOS = ['Santiago Munhoz','Ariel Sandoval','Cerrajeria Aleluya','Mauricio Gonzales','Gonzalo Rodriguez','Mauricio Gonzalez'];
   const total=df.length;
   const conTec=df.filter(r=>r['Tecnico']&&String(r['Tecnico']).trim()!=='');
@@ -968,13 +984,19 @@ function computeSummary(df,otGen,label,horasManuales){
       const tLow=t.toLowerCase();
       // ¿Es Cerrajería Aleluya? → sin puntaje ni efectividad, sólo conteo de OTs
       const esAleluya = tLow.includes('aleluya') || tLow.includes('cerrajeria');
-      // ¿Es uno de los 4 técnicos con horas manuales?
+      // ¿Es uno de los 4 técnicos con horas manuales? (también recupera su observación)
       let horas = null;
-      if(horasManuales){
+      let observacion = '';
+      if(horasManuales || observaciones){
         for(const tec of TECNICOS_HORAS_MANUAL){
           if(tec.match.some(m=>tLow.includes(m))){
-            const h=horasManuales[tec.key];
-            if(h!=null && !isNaN(h) && Number(h)>0) horas=Number(h);
+            if(horasManuales){
+              const h=horasManuales[tec.key];
+              if(h!=null && !isNaN(h) && Number(h)>0) horas=Number(h);
+            }
+            if(observaciones){
+              observacion = String(observaciones[tec.key]||'').trim();
+            }
             break;
           }
         }
@@ -992,7 +1014,7 @@ function computeSummary(df,otGen,label,horasManuales){
         puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
         efect=parseFloat(Math.min(100,(puntaje/(9*dias))*100).toFixed(1));
       }
-      return{nombre:t,ots:n,dias,horas,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
+      return{nombre:t,ots:n,dias,horas,observacion,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
     });
   const srvMap={};
   df.forEach(r=>{const s=r['Servicio'];if(s){const k=String(s).trim();srvMap[k]=(srvMap[k]||0)+1;}});
@@ -1052,7 +1074,7 @@ function buildDashboard(w){
   });
 
   let rowId=0;
-  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Tiempo</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
+  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Tiempo</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th><th>Observaciones</th></tr></thead><tbody>';
   w.tecnicos.forEach(t=>{
     const jornada=t.ots-t.g_tec-t.g_cerr;
     const isExcl = t.nombre==='Asignacion Interna' || t.puntaje==null || t.efect==null;
@@ -1068,9 +1090,14 @@ function buildDashboard(w){
     const puntajeCell = isExcl ? '—' : '<strong>'+t.puntaje.toFixed(2)+'</strong>';
     // Cap al 100% también en display, por si una semana histórica tiene efect>100 guardado
     const efectCell   = isExcl ? '—' : '<strong>'+Math.min(100,t.efect).toFixed(1)+'%</strong>';
-    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${tiempoTxt}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${puntajeCell}</td><td>${efectCell}</td></tr>`;
+    // Observaciones: texto del técnico, o "Sin observaciones" en cursiva tenue si vacío
+    const obsTxt = (t.observacion||'').trim();
+    const obsCell = obsTxt
+      ? `<span style="display:inline-block;max-width:240px;white-space:normal;word-break:break-word;font-size:13px;">${escHTML(obsTxt)}</span>`
+      : `<span style="color:var(--text-muted,#888);font-style:italic;font-size:12px;">Sin observaciones</span>`;
+    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${tiempoTxt}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${puntajeCell}</td><td>${efectCell}</td><td>${obsCell}</td></tr>`;
   });
-  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
   document.getElementById('tablaTecnicos').innerHTML=tHTML+'</tbody>';
 
   destroyChart('servicios');
