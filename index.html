@@ -22,17 +22,15 @@
     appId: "1:291501593759:web:c6dad7938605b0a666feaa"
   });
 
+  // ── APP CHECK (reCAPTCHA v3) ──
+  // Debe inicializarse INMEDIATAMENTE después de initializeApp y ANTES de
+  // crear las instancias de auth/firestore, para que todas las peticiones
+  // salgan con el token de App Check adjunto.
+  firebase.appCheck().activate('6LcKJKAsAAAAAxkQTgVrrJYVrSF_7Rs45fZladY', true);
+
   const auth = firebase.auth();
   const db = firebase.firestore();
   const DOMINIO_PERMITIDO = 'fullcontrol.com.ar';
-
-  // App Check deshabilitado temporalmente — pendiente resolver clave reCAPTCHA
-  // window.addEventListener('load', () => {
-  //   setTimeout(() => {
-  //     const appCheck = firebase.appCheck();
-  //     appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
-  //   }, 500);
-  // });
 
   // ── AUTH STATE ──
   auth.onAuthStateChanged(user => {
