@@ -386,7 +386,7 @@
     <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
   </div>
 </nav>
-<div style="padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
+<div style="padding:1.75rem 2rem 3rem;max-width:1400px;margin:0 auto;">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
     <div>
       <h1 style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--navy);">KPIs · Tiempos de Respuesta Express</h1>
@@ -397,19 +397,24 @@
     </select>
   </div>
 
-  <div class="section-label">Resumen por servicio</div>
-  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1.75rem;" id="kpisBloqueResumen"></div>
-
   <div class="section-label">Evolución semanal</div>
   <div class="chart-full">
     <h3>% OTs respondidas en ≤ 48hs hábiles por semana</h3>
     <div style="position:relative;height:280px;"><canvas id="kpisChartEvol"></canvas></div>
   </div>
 
-  <div class="section-label">Detalle por semana</div>
-  <div class="table-card-full">
-    <h3>Historial de tiempos de respuesta</h3>
-    <table class="dt" id="kpisTabla"></table>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
+    <div style="flex:2 1 600px;min-width:0;">
+      <div class="section-label">Detalle por semana</div>
+      <div class="table-card-full" style="margin:0;">
+        <h3>Historial de tiempos de respuesta</h3>
+        <table class="dt" id="kpisTabla"></table>
+      </div>
+    </div>
+    <div style="flex:1 1 320px;min-width:0;">
+      <div class="section-label">Tiempo de respuesta promedio</div>
+      <div style="display:flex;flex-direction:column;gap:10px;" id="kpisBloqueResumen"></div>
+    </div>
   </div>
 
   <div class="section-label" style="margin-top:2rem;">Incremento de Facturación · Habilitaciones</div>
@@ -2005,12 +2010,21 @@ function renderKpis(){
   }
 
   // ── GRÁFICO EVOLUCIÓN ──
+  // Filtrar semanas que tengan al menos un dato en cualquier servicio (no mostrar huecos)
+  const weeksChart = weeks.filter(w => {
+    if(!w.tiempoRespuesta) return false;
+    return SRV_EXPRESS_KPI.some(srv => {
+      const t = w.tiempoRespuesta.find(r => r.srv === srv);
+      return t && t.total > 0;
+    });
+  });
+  const labelsChart = weeksChart.map(w => w.label);
   destroyChart('kpisEvol');
   charts['kpisEvol'] = new Chart(document.getElementById('kpisChartEvol'),{
     type:'line',
-    data:{labels, datasets: SRV_EXPRESS_KPI.map(srv=>({
+    data:{labels: labelsChart, datasets: SRV_EXPRESS_KPI.map(srv=>({
       label: SRV_SHORT_KPI[srv],
-      data: weeks.map(w=>{
+      data: weeksChart.map(w=>{
         if(!w.tiempoRespuesta) return null;
         const t=w.tiempoRespuesta.find(r=>r.srv===srv);
         return t&&t.total?Math.round((t.ok/t.total)*100):null;
