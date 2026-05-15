@@ -413,19 +413,28 @@
   </div>
 
   <div class="section-label" style="margin-top:2rem;">Incremento de Facturación · Habilitaciones</div>
-  <div class="table-card-full" style="overflow-x:auto;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
-      <h3 style="margin:0;">SEGUIMIENTO MENSUAL</h3>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span id="habSaveMsg" style="font-size:12px;color:var(--green);display:none;">✓ Guardado</span>
-        <button id="habAddRow" class="btn-secondary" style="font-size:12px;">+ Agregar fila</button>
-        <button id="habSaveBtn" class="btn-dl" style="font-size:12px;padding:7px 14px;">💾 Guardar</button>
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:stretch;">
+    <div class="table-card-full" style="flex:1 1 600px;overflow-x:auto;margin:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
+        <h3 style="margin:0;">SEGUIMIENTO MENSUAL</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="habSaveMsg" style="font-size:12px;color:var(--green);display:none;">✓ Guardado</span>
+          <button id="habAddRow" class="btn-secondary" style="font-size:12px;">+ Agregar fila</button>
+          <button id="habSaveBtn" class="btn-dl" style="font-size:12px;padding:7px 14px;">💾 Guardar</button>
+        </div>
       </div>
+      <div style="overflow-x:auto;">
+        <table id="habTabla" style="width:100%;border-collapse:collapse;font-size:13px;font-family:'DM Sans',sans-serif;min-width:700px;"></table>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Hacé clic en cualquier celda para editarla. Apretá <strong>Guardar</strong> para persistir los cambios.</p>
     </div>
-    <div style="overflow-x:auto;">
-      <table id="habTabla" style="width:100%;border-collapse:collapse;font-size:13px;font-family:'DM Sans',sans-serif;min-width:700px;"></table>
+    <div class="table-card-full" style="flex:1 1 400px;margin:0;display:flex;flex-direction:column;">
+      <h3 style="margin:0 0 1rem;">Evolución del abono · Actual vs Proyectado</h3>
+      <div style="flex:1;min-height:340px;position:relative;">
+        <canvas id="habChart"></canvas>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Se actualiza automáticamente al editar la tabla.</p>
     </div>
-    <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Hacé clic en cualquier celda para editarla. Apretá <strong>Guardar</strong> para persistir los cambios.</p>
   </div>
 </div>
 </div>
@@ -2856,6 +2865,7 @@ async function vehEstadoSave(){
 
 // ── INCREMENTO DE FACTURACIÓN POR HABILITACIONES ──
 const HAB_COLS = ['CONDICION','MES','ABONO','BONIFICACION','INYECTADO EN EL FLUJO'];
+const HAB_MES_ORDER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 const HAB_DEFAULT = [
   ['ACTUAL',      'ENERO',   '$ 1.245.255,34', '$ -',          '$ 1.245.255,34'],
   ['PROYECTADO',  'FEBRERO', '$ 604.319,06',   '$ -',          '$ 604.319,06'  ],
@@ -2867,6 +2877,22 @@ const HAB_DEFAULT = [
   ['PROYECTADO',  'MAYO',    '$ 861.965,93',   '$ -',          '$ 861.965,93'  ]
 ];
 let _habData = null;
+let _habChart = null;
+
+// Convierte "$ 1.245.255,34" → 1245255.34 (formato AR). Devuelve null si no parsea.
+function habParseNum(s){
+  if(s==null) return null;
+  const txt = String(s).replace(/\$/g,'').replace(/\s/g,'').trim();
+  if(txt==='' || txt==='-') return null;
+  // Quita separadores de miles "." y convierte coma decimal a "."
+  const cleaned = txt.replace(/\./g,'').replace(',','.');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? null : n;
+}
+
+function habFmtMoney(n){
+  return '$ ' + n.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0});
+}
 
 async function habLoad(){
   if(!window._fb) return;
@@ -2881,6 +2907,83 @@ async function habLoad(){
     _habData = JSON.parse(JSON.stringify(HAB_DEFAULT));
   }
   habRender();
+  habChartRender();
+}
+
+function habChartRender(){
+  const canvas = document.getElementById('habChart');
+  if(!canvas || !_habData) return;
+  // Agrupar ABONO por mes y condición
+  const byMonth = {};
+  _habData.forEach(row=>{
+    const cond = String(row[0]||'').trim().toUpperCase();
+    const mes  = String(row[1]||'').trim().toUpperCase();
+    const abono = habParseNum(row[2]);
+    if(!HAB_MES_ORDER.includes(mes)) return;
+    if(cond!=='ACTUAL' && cond!=='PROYECTADO') return;
+    if(!byMonth[mes]) byMonth[mes] = {};
+    byMonth[mes][cond] = abono;
+  });
+  // Ordenar los meses presentes según calendario
+  const monthsPresent = HAB_MES_ORDER.filter(m => byMonth[m]);
+  const labels   = monthsPresent.map(m => m.charAt(0) + m.slice(1).toLowerCase());
+  const actuals  = monthsPresent.map(m => byMonth[m].ACTUAL ?? null);
+  const proyects = monthsPresent.map(m => byMonth[m].PROYECTADO ?? null);
+
+  if(_habChart) _habChart.destroy();
+  _habChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Actual',
+          data: actuals,
+          borderColor: '#1565a8',
+          backgroundColor: 'rgba(21,101,168,.12)',
+          pointBackgroundColor: '#1565a8',
+          pointRadius: 4,
+          tension: 0.3,
+          spanGaps: true,
+          fill: false
+        },
+        {
+          label: 'Proyectado',
+          data: proyects,
+          borderColor: '#e8a04a',
+          backgroundColor: 'rgba(232,160,74,.12)',
+          pointBackgroundColor: '#e8a04a',
+          pointRadius: 4,
+          tension: 0.3,
+          spanGaps: true,
+          fill: false,
+          borderDash: [6, 4]
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { position:'bottom', labels:{ font:{family:"'DM Sans',sans-serif", size:12} } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.parsed.y==null ? `${ctx.dataset.label}: —` : `${ctx.dataset.label}: ${habFmtMoney(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: { grid:{display:false} },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: v => v>=1000000 ? '$ '+(v/1000000).toFixed(1)+'M' : v>=1000 ? '$ '+(v/1000).toFixed(0)+'k' : '$ '+v
+          }
+        }
+      }
+    }
+  });
 }
 
 function habRender(){
@@ -2921,6 +3024,7 @@ function habRender(){
   tabla.innerHTML = html;
 }
 
+let _habChartDebounce = null;
 function habCellEdit(ri, ci, val){
   if(!_habData) return;
   _habData[ri][ci] = val.trim();
@@ -2932,6 +3036,12 @@ function habCellEdit(ri, ci, val){
       el.style.fontWeight = (v==='ACTUAL'||v==='PROYECTADO') ? '700' : '400';
     }
   }
+  // Re-renderizar el gráfico con debounce si lo que cambió afecta al chart
+  // (cols 0=CONDICION, 1=MES o 2=ABONO)
+  if(ci<=2){
+    clearTimeout(_habChartDebounce);
+    _habChartDebounce = setTimeout(habChartRender, 300);
+  }
 }
 
 function habDelRow(ri){
@@ -2939,12 +3049,14 @@ function habDelRow(ri){
   if(!confirm('¿Eliminar esta fila?')) return;
   _habData.splice(ri,1);
   habRender();
+  habChartRender();
 }
 
 function habAddRow(){
   if(!_habData) return;
   _habData.push(['ACTUAL','—','$ 0,00','$ -','$ 0,00']);
   habRender();
+  habChartRender();
   setTimeout(()=>{
     const el = document.querySelector(`#habTabla [data-row="${_habData.length-1}"][data-col="0"]`);
     if(el){el.focus();const r=document.createRange();r.selectNodeContents(el);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);}
