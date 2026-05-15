@@ -1917,7 +1917,7 @@ function renderResumen(){
       type:'line',
       data:{labels:instWeeks.map(w=>w.label), datasets:instTecNames.map((t,i)=>({
         label:t,
-        data:instWeeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec?tec.efect:null;}),
+        data:instWeeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec && tec.efect!=null ? Math.min(100, tec.efect) : null;}),
         borderColor:instColors[i%instColors.length],backgroundColor:'transparent',
         tension:.3,pointRadius:4,spanGaps:true
       }))},
@@ -2500,30 +2500,49 @@ async function instGuardar(){
   }
 }
 
+// Separa el campo TÉCNICO cuando hay más de uno (formato Excel: "MARIO y JUAN")
+// Devuelve siempre un array (de 1 elemento si trabajó solo).
+function instSplitTecnicos(rawTec){
+  if(!rawTec) return [];
+  return String(rawTec)
+    .split(/\s+y\s+/i)
+    .map(t=>t.trim())
+    .filter(t=>t.length>0);
+}
+
 function instComputeSummary(df,label){
-  // Calcular por técnico
+  // Calcular por técnico, contemplando trabajos en equipo
   const tecMap={};
+  // Totales de la semana: se calculan directo del df para NO doble-contar las órdenes en equipo
+  let totalCalcWeek=0, totalRealWeek=0;
   df.forEach(r=>{
     const rawTec=String(r['TÉCNICO']||r['TECNICO']||'').trim();
     if(!rawTec) return;
-    // Normalize: capitalize first letter of each word
-    const tec=rawTec.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
-    if(!tecMap[tec]) tecMap[tec]={instalaciones:0,tiempoCalc:0,tiempoReal:0,items:[]};
-    tecMap[tec].instalaciones++;
-    tecMap[tec].tiempoCalc+=parseFloat(r['TIEMPO CALCULADO ']||r['TIEMPO CALCULADO']||0)||0;
-    tecMap[tec].tiempoReal+=parseFloat(r['TIEMPO REAL']||0)||0;
-    tecMap[tec].items.push(r);
+    const tiempoCalcRow=parseFloat(r['TIEMPO CALCULADO ']||r['TIEMPO CALCULADO']||0)||0;
+    const tiempoRealRow=parseFloat(r['TIEMPO REAL']||0)||0;
+    totalCalcWeek+=tiempoCalcRow;
+    totalRealWeek+=tiempoRealRow;
+    // Partir por " y " para detectar equipos. Cada técnico se lleva la orden COMPLETA.
+    instSplitTecnicos(rawTec).forEach(rawTec2=>{
+      // Normalize: capitalize first letter of each word
+      const tec=rawTec2.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+      if(!tecMap[tec]) tecMap[tec]={instalaciones:0,tiempoCalc:0,tiempoReal:0,items:[]};
+      tecMap[tec].instalaciones++;
+      tecMap[tec].tiempoCalc+=tiempoCalcRow;
+      tecMap[tec].tiempoReal+=tiempoRealRow;
+      tecMap[tec].items.push(r);
+    });
   });
   const tecnicos=Object.entries(tecMap).map(([nombre,d])=>{
-    const efect=d.tiempoReal>0?parseFloat(((d.tiempoCalc/d.tiempoReal)*100).toFixed(1)):100;
+    // Cap al 100%: si terminó más rápido que el tiempo calculado, se topea
+    const efect=d.tiempoReal>0?parseFloat(Math.min(100,(d.tiempoCalc/d.tiempoReal)*100).toFixed(1)):100;
     const diferencia=parseFloat((d.tiempoCalc-d.tiempoReal).toFixed(1));
     return{nombre,instalaciones:d.instalaciones,tiempoCalc:d.tiempoCalc,tiempoReal:d.tiempoReal,diferencia,efect};
   });
-  const totalCalc=tecnicos.reduce((s,t)=>s+t.tiempoCalc,0);
-  const totalReal=tecnicos.reduce((s,t)=>s+t.tiempoReal,0);
-  const totalEfect=totalReal>0?parseFloat(((totalCalc/totalReal)*100).toFixed(1)):100;
+  // Totales semanales calculados directo del df (sin doble-contar equipos)
+  const totalEfect=totalRealWeek>0?parseFloat(Math.min(100,(totalCalcWeek/totalRealWeek)*100).toFixed(1)):100;
   const totalInstalaciones=df.length;
-  return{label,totalInstalaciones,totalCalc,totalReal,totalEfect,tecnicos,items:df};
+  return{label,totalInstalaciones,totalCalc:totalCalcWeek,totalReal:totalRealWeek,totalEfect,tecnicos,items:df};
 }
 
 async function instLoadSaved(){
@@ -2567,7 +2586,7 @@ function instRenderSaved(weeks){
           <div class="saved-week-item" style="margin-bottom:4px;">
             <div style="flex:1">
               <div class="saved-week-label">📄 ${w.label}</div>
-              <div class="saved-week-sub">${w.totalInstalaciones} instalaciones · Efect. ${w.totalEfect}%</div>
+              <div class="saved-week-sub">${w.totalInstalaciones} instalaciones · Efect. ${Math.min(100, w.totalEfect||0)}%</div>
             </div>
             <button class="btn-view-week" onclick='instBuildDashboard(${JSON.stringify(w).replace(/'/g,"&#39;")})'>Ver →</button>
             <button class="btn-del-week" onclick='instDelete("${w.id}")'>✕</button>
@@ -2592,10 +2611,11 @@ function instBuildDashboard(w){
   document.getElementById('instTopPeriod').textContent=w.label;
 
   // KPIs
-  const efColor=w.totalEfect>=100?'green':w.totalEfect>=80?'teal':'purple';
+  const totalEfectCap = Math.min(100, w.totalEfect||0);
+  const efColor=totalEfectCap>=100?'green':totalEfectCap>=80?'teal':'purple';
   document.getElementById('instKpiGrid').innerHTML=[
     {cls:'navy',label:'Total instalaciones',value:w.totalInstalaciones,sub:'en la semana'},
-    {cls:efColor,label:'% Efectividad',value:w.totalEfect+'%',sub:'tiempo calculado / tiempo real'},
+    {cls:efColor,label:'% Efectividad',value:totalEfectCap+'%',sub:'tiempo calculado / tiempo real'},
     {cls:'teal',label:'Tiempo calculado',value:w.totalCalc+'hs',sub:'horas estimadas'},
     {cls:'navy',label:'Tiempo real',value:w.totalReal+'hs',sub:'horas ejecutadas'},
   ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
@@ -2604,7 +2624,7 @@ function instBuildDashboard(w){
   let tHTML='<thead><tr><th>Técnico</th><th>Instalaciones</th><th>Tiempo calc.</th><th>Tiempo real</th><th>Diferencia</th><th>% Efectividad</th></tr></thead><tbody>';
   (w.tecnicos||[]).forEach((t,i)=>{
     const bg=i%2===0?'':'background:var(--surface)';
-    const ef=t.efect;
+    const ef=Math.min(100, t.efect||0);
     const efC=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
     const difC=t.diferencia>=0?'#1a7a56':'#c0392b';
     tHTML+=`<tr style="${bg}"><td><strong>${t.nombre}</strong></td><td>${t.instalaciones}</td><td>${t.tiempoCalc}hs</td><td>${t.tiempoReal}hs</td><td style="color:${difC};font-weight:600;">${t.diferencia>=0?'+':''}${t.diferencia}hs</td><td style="color:${efC};font-weight:600;">${ef}%</td></tr>`;
@@ -2675,12 +2695,12 @@ function instRenderEvolucion(){
     type:'line',
     data:{labels, datasets:tecNames.map((t,i)=>({
       label:t,
-      data:weeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec?tec.efect:null;}),
+      data:weeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec && tec.efect!=null ? Math.min(100, tec.efect) : null;}),
       borderColor:colors[i%colors.length],backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
     }))},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
-      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{callback:v=>v+'%'}}}}
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}
   });
 
   // Tabla evolución
@@ -2696,20 +2716,22 @@ function instRenderEvolucion(){
       html+=`<tr style="background:#1a3a5c !important;"><td colspan="${5+tecNames.length}" style="color:white;font-weight:600;background:#1a3a5c;">📁 ${mes}</td></tr>`;
       mW.forEach((w,i)=>{
         const bg=i%2===0?'':'background:var(--surface)';
-        const efC=w.totalEfect>=100?'#1a7a56':w.totalEfect>=80?'#1565a8':'#c0392b';
+        const efTot=Math.min(100, w.totalEfect||0);
+        const efC=efTot>=100?'#1a7a56':efTot>=80?'#1565a8':'#c0392b';
         html+=`<tr style="${bg}"><td style="padding-left:20px;">↳ ${w.label}</td><td>${w.totalInstalaciones}</td><td>${w.totalCalc}hs</td><td>${w.totalReal}hs</td>`;
-        tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);html+=`<td style="text-align:center;">${tec?`<span style="color:${tec.efect>=100?'#1a7a56':tec.efect>=80?'#1565a8':'#c0392b'};font-weight:600;">${tec.efect}%</span>`:'—'}</td>`;});
-        html+=`<td style="color:${efC};font-weight:600;text-align:center;">${w.totalEfect}%</td></tr>`;
+        tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);if(!tec){html+=`<td style="text-align:center;">—</td>`;return;}const efT=Math.min(100, tec.efect||0);html+=`<td style="text-align:center;"><span style="color:${efT>=100?'#1a7a56':efT>=80?'#1565a8':'#c0392b'};font-weight:600;">${efT}%</span></td>`;});
+        html+=`<td style="color:${efC};font-weight:600;text-align:center;">${efTot}%</td></tr>`;
       });
     });
   } else {
     html=`<thead><tr><th>Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
     weeks.forEach((w,i)=>{
       const bg=i%2===0?'':'background:var(--surface)';
-      const efC=w.totalEfect>=100?'#1a7a56':w.totalEfect>=80?'#1565a8':'#c0392b';
+      const efTot=Math.min(100, w.totalEfect||0);
+      const efC=efTot>=100?'#1a7a56':efTot>=80?'#1565a8':'#c0392b';
       html+=`<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.totalInstalaciones}</td><td>${w.totalCalc}hs</td><td>${w.totalReal}hs</td>`;
-      tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);html+=`<td style="text-align:center;">${tec?`<span style="color:${tec.efect>=100?'#1a7a56':tec.efect>=80?'#1565a8':'#c0392b'};font-weight:600;">${tec.efect}%</span>`:'—'}</td>`;});
-      html+=`<td style="color:${efC};font-weight:600;text-align:center;">${w.totalEfect}%</td></tr>`;
+      tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);if(!tec){html+=`<td style="text-align:center;">—</td>`;return;}const efT=Math.min(100, tec.efect||0);html+=`<td style="text-align:center;"><span style="color:${efT>=100?'#1a7a56':efT>=80?'#1565a8':'#c0392b'};font-weight:600;">${efT}%</span></td>`;});
+      html+=`<td style="color:${efC};font-weight:600;text-align:center;">${efTot}%</td></tr>`;
     });
   }
   document.getElementById('instTablaEvol').innerHTML=html+'</tbody>';
