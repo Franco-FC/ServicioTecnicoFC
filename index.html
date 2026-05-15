@@ -2510,6 +2510,18 @@ function instSplitTecnicos(rawTec){
     .filter(t=>t.length>0);
 }
 
+// Técnicos que NO deben aparecer en la pantalla Evolución de Instalación.
+// Son personas de ST que ocasionalmente trabajan en instalaciones por trabajo
+// en equipo, pero el módulo Instalación no debe atribuirles métricas de evolución.
+// El matching es por primer y apellido, case-insensitive, y cubre variantes de grafía.
+function instIsTecOculto(nombre){
+  const n = String(nombre||'').toLowerCase().trim();
+  return (n.includes('ariel')    && n.includes('sandoval'))
+      || (n.includes('mauricio') && (n.includes('gonzalez')||n.includes('gonzales')))
+      || (n.includes('santiago') && n.includes('munhoz'))
+      || ((n.includes('ricardo')||n.includes('ricado')) && n.includes('prieto'));
+}
+
 function instComputeSummary(df,label){
   // Calcular por técnico, contemplando trabajos en equipo
   const tecMap={};
@@ -2687,7 +2699,8 @@ function instRenderEvolucion(){
   if(!weeks.length) return;
   document.getElementById('instEvolBadge').textContent=_instMesActivo==='todos'?'Todas las semanas':_instMesActivo;
   const labels=weeks.map(w=>w.label);
-  const tecNames=[...new Set(weeks.flatMap(w=>(w.tecnicos||[]).map(t=>t.nombre)))];
+  const tecNames=[...new Set(weeks.flatMap(w=>(w.tecnicos||[]).map(t=>t.nombre)))]
+    .filter(n=>!instIsTecOculto(n));
   const colors=['#2e6da4','#e8a04a','#c0392b','#1a7a56','#5340b8'];
 
   destroyChart('instEvol');
