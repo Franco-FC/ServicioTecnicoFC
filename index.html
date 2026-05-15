@@ -23,14 +23,14 @@
   });
 
   // ── APP CHECK (reCAPTCHA v3) ──
-  // Se activa al disparar DOMContentLoaded porque reCAPTCHA inyecta elementos
-  // en <body>, que todavía no existe cuando este script corre desde <head>.
-  // El SDK de Firebase encola las peticiones hasta que App Check esté listo,
-  // así que aunque auth/firestore ya estén instanciados abajo, los tokens
-  // se adjuntan correctamente una vez que activate() termina.
-  document.addEventListener('DOMContentLoaded', () => {
-    firebase.appCheck().activate('6LcKJKAsAAAAAxkQTgVrrJYVrSF_7Rs45fZladY', true);
-  });
+  // DESACTIVADO temporalmente. Para reactivar:
+  //   - Usuario debe contar con reCAPTCHA Enterprise habilitado (requiere plan Blaze).
+  //   - Crear clave Enterprise en Google Cloud Console.
+  //   - Cambiar el código abajo al provider Enterprise correspondiente.
+  //   - Registrar el provider en Firebase Console → App Check.
+  // document.addEventListener('DOMContentLoaded', () => {
+  //   firebase.appCheck().activate('TU_SITE_KEY_AQUI', true);
+  // });
 
   const auth = firebase.auth();
   const db = firebase.firestore();
