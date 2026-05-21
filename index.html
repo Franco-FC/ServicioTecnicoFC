@@ -1035,8 +1035,10 @@ function computeSummary(df,otGen,label,horasManuales,observaciones){
   const srvMap={};
   df.forEach(r=>{const s=r['Servicio'];if(s){const k=String(s).trim();srvMap[k]=(srvMap[k]||0)+1;}});
   const topServicios=Object.entries(srvMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([s,n])=>({s,n}));
+  // OTs por día de la semana — usa la fecha de finalización (cuándo se cerró la OT),
+  // no la de creación (cuándo entró al sistema).
   const dayMap={};
-  df.forEach(r=>{const d=parseDate(r['Fecha de Creación']);if(d){const dow=d.getDay();dayMap[dow]=(dayMap[dow]||0)+1;}});
+  df.forEach(r=>{const d=parseDate(r['Fecha de finalizacion']);if(d){const dow=d.getDay();dayMap[dow]=(dayMap[dow]||0)+1;}});
   // ── TIEMPO DE RESPUESTA EXPRESS ──
   const SRV_EXPRESS_RESP = ['EXPRESS - 5.FALLA AUTOACTIVACI','EXPRESS - 2. FALTA DE TEST','EXPRESS - 4.FALLA DVR/NVR'];
   function horasHabiles(inicio, fin){
