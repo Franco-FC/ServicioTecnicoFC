@@ -2025,7 +2025,7 @@ function renderKpis(){
   // Ignora el filtro de mes — siempre muestra TODOS los meses para ver la tendencia.
   const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const byMonth = {};
-  allWeeks.forEach(w => {
+  (_kpisWeeks || []).forEach(w => {
     const startDate = extractStartDate(w.label || '');
     if(!startDate || isNaN(startDate.getTime())) return;
     const monthKey = `${MESES_ES[startDate.getMonth()]} ${startDate.getFullYear()}`;
