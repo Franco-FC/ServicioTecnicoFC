@@ -399,7 +399,7 @@
 
   <div class="section-label">OTs Generadas vs Realizadas</div>
   <div class="chart-full">
-    <h3>Cantidad de OTs generadas vs finalizadas por semana</h3>
+    <h3>Cantidad de OTs generadas vs finalizadas por mes</h3>
     <div style="position:relative;height:280px;"><canvas id="kpisChartOts"></canvas></div>
   </div>
 
@@ -2017,32 +2017,47 @@ function renderKpis(){
     resumenEl.innerHTML = html || '<p style="color:var(--text-muted);font-size:13px;">Sin datos en el período seleccionado</p>';
   }
 
-  // ── GRÁFICO OTs GENERADAS vs REALIZADAS ──
-  // Cantidad absoluta de OTs por semana, comparando lo emitido (otGen) contra lo finalizado (totalOTs).
+  // ── GRÁFICO OTs GENERADAS vs REALIZADAS (MENSUAL) ──
+  // Agrupa por MES derivado del label de cada semana (ej: "Semana 1 · 02/03 al 08/03" → Marzo).
+  // NO usa el campo `mes` que se carga manualmente, para evitar diferencias por tipeo
+  // ("Febrero" vs "febrero" vs "Febrero 2026"). Es 100% determinístico.
+  // Las semanas que cruzan meses (ej: 23/02 al 01/03) se asignan al mes de la fecha de INICIO.
+  // Ignora el filtro de mes — siempre muestra TODOS los meses para ver la tendencia.
+  const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const byMonth = {};
+  allWeeks.forEach(w => {
+    const startDate = extractStartDate(w.label || '');
+    if(!startDate || isNaN(startDate.getTime())) return;
+    const monthKey = `${MESES_ES[startDate.getMonth()]} ${startDate.getFullYear()}`;
+    if(!byMonth[monthKey]) byMonth[monthKey] = { otGen: 0, totalOTs: 0, sortDate: startDate };
+    byMonth[monthKey].otGen    += Number(w.otGen)    || 0;
+    byMonth[monthKey].totalOTs += Number(w.totalOTs) || 0;
+  });
+  const monthLabels = Object.keys(byMonth).sort((a,b) => byMonth[a].sortDate - byMonth[b].sortDate);
   destroyChart('kpisOts');
   charts['kpisOts'] = new Chart(document.getElementById('kpisChartOts'),{
     type:'line',
     data:{
-      labels: weeks.map(w=>w.label),
+      labels: monthLabels,
       datasets:[
         {
           label:'Generadas',
-          data: weeks.map(w => w.otGen!=null ? Number(w.otGen) : null),
+          data: monthLabels.map(m => byMonth[m].otGen),
           borderColor:'#e8a04a',
           backgroundColor:'rgba(232,160,74,.12)',
           pointBackgroundColor:'#e8a04a',
-          pointRadius:4,
+          pointRadius:5,
           tension:.3,
           spanGaps:true,
           fill:false
         },
         {
           label:'Realizadas',
-          data: weeks.map(w => w.totalOTs!=null ? Number(w.totalOTs) : null),
+          data: monthLabels.map(m => byMonth[m].totalOTs),
           borderColor:'#1565a8',
           backgroundColor:'rgba(21,101,168,.12)',
           pointBackgroundColor:'#1565a8',
-          pointRadius:4,
+          pointRadius:5,
           tension:.3,
           spanGaps:true,
           fill:false
