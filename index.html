@@ -2728,7 +2728,7 @@ function instBuildDashboard(w){
   ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
 
   // Tabla técnicos
-  let tHTML='<thead><tr><th>Técnico</th><th>Instalaciones</th><th>Tiempo calc.</th><th>Tiempo real</th><th>Diferencia</th><th>% Efectividad</th></tr></thead><tbody>';
+  let tHTML='<thead><tr><th>Técnico</th><th>Asistencias</th><th>Tiempo calc.</th><th>Tiempo real</th><th>Diferencia</th><th>% Efectividad</th></tr></thead><tbody>';
   (w.tecnicos||[]).forEach((t,i)=>{
     const bg=i%2===0?'':'background:var(--surface)';
     const ef=Math.min(100, t.efect||0);
