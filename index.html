@@ -2547,7 +2547,7 @@ function instHandleFiles(files){
         // Render config row
         const div=document.createElement('div');
         div.className='file-item';
-        div.innerHTML=`<span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${df.length} instalaciones)</span></span>
+        div.innerHTML=`<span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${df.length} asistencias)</span></span>
           <label>Mes/Año&nbsp;</label><input type="text" id="instMes_${i}" placeholder="ej: Abril 2026" />
           <label>&nbsp;Período&nbsp;</label><input type="text" id="instLabel_${i}" placeholder="ej: Semana 1 · 06/04" placeholder="ej: Semana 1 · 06/04" />`;
         document.getElementById('instConfigRows').appendChild(div);
@@ -2693,7 +2693,7 @@ function instRenderSaved(weeks){
           <div class="saved-week-item" style="margin-bottom:4px;">
             <div style="flex:1">
               <div class="saved-week-label">📄 ${w.label}</div>
-              <div class="saved-week-sub">${w.totalInstalaciones} instalaciones · Efect. ${Math.min(100, w.totalEfect||0)}%</div>
+              <div class="saved-week-sub">${w.totalInstalaciones} asistencias · Efect. ${Math.min(100, w.totalEfect||0)}%</div>
             </div>
             <button class="btn-view-week" onclick='instBuildDashboard(${JSON.stringify(w).replace(/'/g,"&#39;")})'>Ver →</button>
             <button class="btn-del-week" onclick='instDelete("${w.id}")'>✕</button>
@@ -2721,7 +2721,7 @@ function instBuildDashboard(w){
   const totalEfectCap = Math.min(100, w.totalEfect||0);
   const efColor=totalEfectCap>=100?'green':totalEfectCap>=80?'teal':'purple';
   document.getElementById('instKpiGrid').innerHTML=[
-    {cls:'navy',label:'Total instalaciones',value:w.totalInstalaciones,sub:'en la semana'},
+    {cls:'navy',label:'Total asistencias',value:w.totalInstalaciones,sub:'en la semana'},
     {cls:efColor,label:'% Efectividad',value:totalEfectCap+'%',sub:'tiempo calculado / tiempo real'},
     {cls:'teal',label:'Tiempo calculado',value:w.totalCalc+'hs',sub:'horas estimadas'},
     {cls:'navy',label:'Tiempo real',value:w.totalReal+'hs',sub:'horas ejecutadas'},
@@ -2817,7 +2817,7 @@ function instRenderEvolucion(){
     const byMes={};
     weeks.forEach(w=>{const m=w.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(w);});
     const mesesSorted=Object.keys(byMes).sort((a,b)=>extractStartDate(byMes[a][0].label)-extractStartDate(byMes[b][0].label));
-    html=`<thead><tr><th>Mes / Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
+    html=`<thead><tr><th>Mes / Semana</th><th>Asistencias</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
     mesesSorted.forEach(mes=>{
       const mW=sortWeeks(byMes[mes]);
       const totInst=mW.reduce((s,w)=>s+w.totalInstalaciones,0);
@@ -2832,7 +2832,7 @@ function instRenderEvolucion(){
       });
     });
   } else {
-    html=`<thead><tr><th>Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
+    html=`<thead><tr><th>Semana</th><th>Asistencias</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
     weeks.forEach((w,i)=>{
       const bg=i%2===0?'':'background:var(--surface)';
       const efTot=Math.min(100, w.totalEfect||0);
@@ -3395,8 +3395,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   <div class="kpi-grid" id="instKpiGrid"></div>
   <div class="section-label">Detalle por técnico</div>
   <div class="table-card-full"><h3>Resumen por técnico</h3><table class="dt" id="instTablaTecnicos"></table></div>
-  <div class="section-label">Detalle de instalaciones</div>
-  <div class="table-card-full" style="overflow-x:auto;"><h3>Instalaciones de la semana</h3><table class="dt" id="instTablaDetalle"></table></div>
+  <div class="section-label">Detalle de asistencias</div>
+  <div class="table-card-full" style="overflow-x:auto;"><h3>Asistencias de la semana</h3><table class="dt" id="instTablaDetalle"></table></div>
 </div>
 
 <div id="instEvolucionScreen" style="display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
