@@ -22,26 +22,48 @@
     appId: "1:291501593759:web:c6dad7938605b0a666feaa"
   });
 
-  // ── APP CHECK (reCAPTCHA v3) ──
-  // DESACTIVADO temporalmente. Para reactivar:
-  //   - Usuario debe contar con reCAPTCHA Enterprise habilitado (requiere plan Blaze).
-  //   - Crear clave Enterprise en Google Cloud Console.
-  //   - Cambiar el código abajo al provider Enterprise correspondiente.
-  //   - Registrar el provider en Firebase Console → App Check.
-  // document.addEventListener('DOMContentLoaded', () => {
-  //   firebase.appCheck().activate('TU_SITE_KEY_AQUI', true);
-  // });
-
   const auth = firebase.auth();
   const db = firebase.firestore();
   const DOMINIO_PERMITIDO = 'fullcontrol.com.ar';
 
+  // App Check deshabilitado temporalmente — pendiente resolver clave reCAPTCHA
+  // window.addEventListener('load', () => {
+  //   setTimeout(() => {
+  //     const appCheck = firebase.appCheck();
+  //     appCheck.activate('6Lc-9Z8sAAAAAAtH-f61gR87kEKNowK6ZDsMXUqa', true);
+  //   }, 500);
+  // });
+
   // ── AUTH STATE ──
+  // ── LOG DE ACCESOS ──
+  // Registrar intento fallido (dominio no permitido)
+  async function registrarIntentoFallido(email){
+    if(!window._fb) return;
+    try{
+      await db.collection('log_accesos').add({
+        email, tipo:'rechazado', dominio:email.split('@')[1]||'desconocido',
+        timestamp:Date.now(), fecha:new Date().toLocaleString('es-AR')
+      });
+    }catch(e){ console.error('log error:',e); }
+  }
+
+  // Registrar acceso exitoso
+  async function registrarAccesoExitoso(email){
+    if(!window._fb) return;
+    try{
+      await db.collection('log_accesos').add({
+        email, tipo:'exitoso', dominio:email.split('@')[1]||'desconocido',
+        timestamp:Date.now(), fecha:new Date().toLocaleString('es-AR')
+      });
+    }catch(e){ console.error('log error:',e); }
+  }
+
   auth.onAuthStateChanged(user => {
     if (user) {
       const dominio = user.email.split('@')[1];
       if (dominio !== DOMINIO_PERMITIDO) {
         auth.signOut();
+        registrarIntentoFallido(user.email);
         mostrarLoginError('Solo se permite acceso con cuentas @' + DOMINIO_PERMITIDO);
         return;
       }
@@ -49,6 +71,7 @@
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appContainer').style.display = 'block';
       document.getElementById('userEmail').textContent = user.email;
+      registrarAccesoExitoso(user.email);
       initUploadListeners();
       setTimeout(() => window.dispatchEvent(new Event('firebaseReady')), 300);
     } else {
@@ -89,8 +112,6 @@
     deleteInstalacion:(id)   => db.collection('semanas_instalacion').doc(id).delete(),
     getEstadoVehiculos: async () => { const s = await db.collection('estado_vehiculos').doc('tabla').get(); return s.exists ? s.data() : null; },
     saveEstadoVehiculos: async (data) => { await db.collection('estado_vehiculos').doc('tabla').set({...data, updatedAt: Date.now()}); },
-    getHabilitaciones: async () => { const s = await db.collection('habilitaciones_facturacion').doc('tabla').get(); return s.exists ? s.data() : null; },
-    saveHabilitaciones: async (data) => { await db.collection('habilitaciones_facturacion').doc('tabla').set({...data, updatedAt: Date.now()}); },
   };
 </script>
 <style>
@@ -263,6 +284,7 @@
     <div class="home-brand"><span style="color:#3a3a3a;font-weight:900;letter-spacing:.02em;">FULL</span><span style="color:#8DC63F;font-weight:900;letter-spacing:.02em;">CONTROL</span></div>
     <div style="display:flex;align-items:center;gap:10px;">
       <span id="userEmail" style="font-size:12px;color:rgba(255,255,255,.5);"></span>
+      <button onclick="verLogAccesos()" style="font-size:11px;padding:5px 12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">🔍 Accesos</button>
       <button onclick="cerrarSesion()" style="font-size:11px;padding:5px 12px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;">Cerrar sesión</button>
     </div>
   </div>
@@ -386,7 +408,7 @@
     <button class="topbar-back" onclick="goTo('home')">← Inicio</button>
   </div>
 </nav>
-<div style="padding:1.75rem 2rem 3rem;max-width:1400px;margin:0 auto;">
+<div style="padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
     <div>
       <h1 style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--navy);">KPIs · Tiempos de Respuesta Express</h1>
@@ -397,11 +419,8 @@
     </select>
   </div>
 
-  <div class="section-label">OTs Generadas vs Realizadas</div>
-  <div class="chart-full">
-    <h3>Cantidad de OTs generadas vs finalizadas por mes</h3>
-    <div style="position:relative;height:280px;"><canvas id="kpisChartOts"></canvas></div>
-  </div>
+  <div class="section-label">Resumen por servicio</div>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:1.75rem;" id="kpisBloqueResumen"></div>
 
   <div class="section-label">Evolución semanal</div>
   <div class="chart-full">
@@ -409,43 +428,10 @@
     <div style="position:relative;height:280px;"><canvas id="kpisChartEvol"></canvas></div>
   </div>
 
-  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
-    <div style="flex:2 1 600px;min-width:0;">
-      <div class="section-label">Detalle por semana</div>
-      <div class="table-card-full" style="margin:0;">
-        <h3>Historial de tiempos de respuesta</h3>
-        <table class="dt" id="kpisTabla"></table>
-      </div>
-    </div>
-    <div style="flex:1 1 320px;min-width:0;">
-      <div class="section-label">Tiempo de respuesta promedio</div>
-      <div style="display:flex;flex-direction:column;gap:10px;" id="kpisBloqueResumen"></div>
-    </div>
-  </div>
-
-  <div class="section-label" style="margin-top:2rem;">Incremento de Facturación · Habilitaciones</div>
-  <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:stretch;">
-    <div class="table-card-full" style="flex:1 1 600px;overflow-x:auto;margin:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px;">
-        <h3 style="margin:0;">SEGUIMIENTO MENSUAL</h3>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span id="habSaveMsg" style="font-size:12px;color:var(--green);display:none;">✓ Guardado</span>
-          <button id="habAddRow" class="btn-secondary" style="font-size:12px;">+ Agregar fila</button>
-          <button id="habSaveBtn" class="btn-dl" style="font-size:12px;padding:7px 14px;">💾 Guardar</button>
-        </div>
-      </div>
-      <div style="overflow-x:auto;">
-        <table id="habTabla" style="width:100%;border-collapse:collapse;font-size:13px;font-family:'DM Sans',sans-serif;min-width:700px;"></table>
-      </div>
-      <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Hacé clic en cualquier celda para editarla. Apretá <strong>Guardar</strong> para persistir los cambios.</p>
-    </div>
-    <div class="table-card-full" style="flex:1 1 400px;margin:0;display:flex;flex-direction:column;">
-      <h3 style="margin:0 0 1rem;">Evolución del abono · Actual vs Proyectado</h3>
-      <div style="flex:1;min-height:340px;position:relative;">
-        <canvas id="habChart"></canvas>
-      </div>
-      <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">Se actualiza automáticamente al editar la tabla.</p>
-    </div>
+  <div class="section-label">Detalle por semana</div>
+  <div class="table-card-full">
+    <h3>Historial de tiempos de respuesta</h3>
+    <table class="dt" id="kpisTabla"></table>
   </div>
 </div>
 </div>
@@ -642,14 +628,6 @@ function toggleDetail(id){
   btn.innerHTML=open?'Cerrar ▴':`Ver ${el.children.length} servicios ▾`;
 }
 
-function toggleObs(id){
-  const el=document.getElementById(id);
-  if(!el) return;
-  const btn=el.previousElementSibling;
-  const open=el.classList.toggle('open');
-  if(btn) btn.innerHTML = open ? '📝 ▴' : '📝 ▾';
-}
-
 function goTo(s){
   document.getElementById('homeScreen').style.display=s==='home'?'flex':'none';
   document.getElementById('servtecScreen').style.display=s==='servtec'?'block':'none';
@@ -671,7 +649,7 @@ function goTo(s){
     fidelLoadSavedWeeks();
   }
   if(s==='resumen') loadResumen();
-  if(s==='kpis'){ loadKpis(); habLoad(); }
+  if(s==='kpis') loadKpis();
   if(s==='vehiculos'){
     document.getElementById('vehiculosUploadScreen').style.display='flex';
     document.getElementById('vehiculosDashboard').style.display='none';
@@ -713,26 +691,13 @@ const COEF={
   '4.REVISIÓN':1.4,'4.REVISION':1.4,'5.SONORIZACION SISTEMA':1.3,'6.BATERIA':1.12,
   '8. URGENCIA TECNICA':0.8,'91. GUARDIA TECNICA':0,'92. GUARDIA CERRAJERIA':0,
   '93. URGENCIA CERRAJERIA':1,'94. CERRAJERIA DTP/ELECTRO':0.72,
-  'EXPRESS - 1. FALLA 220V':0.7,'EXPRESS - 2. FALTA DE TEST':0.7,
-  'EXPRESS - 3. REINICIO DE PLACA':0.7,'EXPRESS - 4.FALLA DVR/NVR':0.7,
-  'EXPRESS - 5.FALLA AUTOACTIVACI':0.7,'EXPRESS - 6.ANULACION/HABILITA':0.7,
-  'EXPRESS - 8.TAMPERS EDIFICIO':0.7,'Express - Carteleria':0.7,
-  'Express - Controles remotos':0.7,'P1.PARTICULAR':1.8,'P2.INDUSTRIAS':4.5,'P2. INDUSTRIAS':4.5,
+  'EXPRESS - 1. FALLA 220V':0.6328,'EXPRESS - 2. FALTA DE TEST':0.6328,
+  'EXPRESS - 3. REINICIO DE PLACA':0.6328,'EXPRESS - 4.FALLA DVR/NVR':0.6328,
+  'EXPRESS - 5.FALLA AUTOACTIVACI':0.6328,'EXPRESS - 6.ANULACION/HABILITA':0.6328,
+  'EXPRESS - 8.TAMPERS EDIFICIO':0.6328,'Express - Carteleria':0.6328,
+  'Express - Controles remotos':0.6328,'P1.PARTICULAR':1.8,'P2.INDUSTRIAS':4.5,'P2. INDUSTRIAS':4.5,
   'T.Cambio de Equipo':2.22,'T. Cambio de Equipo':2.22,'T. Desinstalación':3,'T.Migración':1,'T. Migración':1,
   'T.Recableado':4.5,'T.Reparacion de internet':2.5,'T.Varios - uso técnica':0,
-  // ── Nuevas grafías (a partir de Feb 2026, sistema central actualizado) ──
-  '2.Problema en lectora':0.93,
-  '5.Sonorizacion Buzzer':1.3,
-  '7.Particular':1.8,
-  '9. Guardia Tecnica':0,
-  '91. Urgencia cerrajer':1,
-  '92. Guardia cerrajeri':0,
-  '93. Cerrajería DTP/ELECTRO':0.72,
-  'Express - 3. Reinicio placas':0.7,
-  'Express - 5.Falla en autoacti':0.7,
-  'Express - 6.Anulacion/Habilit':0.7,
-  'Express - 7.Redireccion camar':0.7,
-  'T.Cambio bateria':1.12,
 };
 function normalizeStr(s){
   return s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
@@ -818,26 +783,10 @@ function handleFiles(files){
 function renderConfig(i,name,count){
   const div=document.createElement('div');
   div.className='file-item';
-  const horasInputs = TECNICOS_HORAS_MANUAL.map(tec=>{
-    const corto = tec.label.split(' ')[0];
-    return `<label style="margin-left:10px;">${corto}&nbsp;</label><input type="number" min="0" max="80" step="0.5" id="horas_${tec.key}_${i}" style="width:65px;" placeholder="hs" />`;
-  }).join('');
-  const obsInputs = TECNICOS_HORAS_MANUAL.map(tec=>{
-    const corto = tec.label.split(' ')[0];
-    return `<label style="margin-left:10px;font-size:12px;">${corto}&nbsp;</label><input type="text" id="obs_${tec.key}_${i}" style="width:170px;" placeholder="opcional" maxlength="300" />`;
-  }).join('');
   div.innerHTML=`<span class="file-item-name">📄 ${name} <span style="color:var(--text-muted);font-weight:400;">(${count} OTs)</span></span>
     <label>Mes/Año&nbsp;</label><input type="text" id="mes_${i}" placeholder="ej: Marzo 2026" />
     <label>&nbsp;OTs generadas&nbsp;</label><input type="number" id="otGen_${i}" placeholder="ej: 212" />
-    <label>&nbsp;Período&nbsp;</label><input type="text" id="label_${i}" placeholder="Semana 2 · 09/03" />
-    <div style="flex-basis:100%;margin-top:10px;padding-top:10px;border-top:1px dashed var(--text-muted,#aaa);display:flex;flex-wrap:wrap;align-items:center;">
-      <span style="font-size:12px;color:var(--text-muted,#666);font-weight:600;">⏱ Horas trabajadas en la semana:</span>
-      ${horasInputs}
-    </div>
-    <div style="flex-basis:100%;margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">
-      <span style="font-size:12px;color:var(--text-muted,#666);font-weight:600;">📝 Observaciones:</span>
-      ${obsInputs}
-    </div>`;
+    <label>&nbsp;Período&nbsp;</label><input type="text" id="label_${i}" placeholder="Semana 2 · 09/03" />`;
   document.getElementById('configRows').appendChild(div);
 }
 
@@ -865,15 +814,7 @@ document.addEventListener('DOMContentLoaded', function(){
         const otGen=parseInt(document.getElementById(`otGen_${i}`)?.value)||df.length;
         const label=document.getElementById(`label_${i}`)?.value||`Semana ${i+1}`;
         const mes=document.getElementById(`mes_${i}`)?.value||'Sin clasificar';
-        const horasManuales={};
-        const observaciones={};
-        TECNICOS_HORAS_MANUAL.forEach(tec=>{
-          const v=parseFloat(document.getElementById(`horas_${tec.key}_${i}`)?.value);
-          horasManuales[tec.key]=isNaN(v)?null:v;
-          const obs=document.getElementById(`obs_${tec.key}_${i}`)?.value;
-          observaciones[tec.key]=(obs||'').trim();
-        });
-        const summary=computeSummary(df,otGen,label,horasManuales,observaciones);
+        const summary=computeSummary(df,otGen,label);
         await window._fb.saveWeek({...summary,mes,timestamp:Date.now()});
       }
       if(sMsg()){sMsg().className='status ok';sMsg().textContent='✓ Guardado en Firebase correctamente';}
@@ -973,21 +914,7 @@ async function deleteWeek(id){
 }
 
 // ── COMPUTE SUMMARY ──
-// Técnicos a los que se les pide horas trabajadas manualmente al cargar el Excel.
-// El "match" se busca como substring case-insensitive contra el campo Tecnico del Excel.
-const TECNICOS_HORAS_MANUAL = [
-  { key: 'santiago', label: 'Santiago Munhoz',   match: ['santiago'] },
-  { key: 'ariel',    label: 'Ariel Sandoval',    match: ['ariel'] },
-  { key: 'gonzalo',  label: 'Gonzalo Rodriguez', match: ['gonzalo'] },
-  { key: 'mauricio', label: 'Mauricio Gonzalez', match: ['mauricio'] }
-];
-
-// Escape HTML básico para mostrar texto libre del usuario (observaciones) sin romper la tabla
-function escHTML(s){
-  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function computeSummary(df,otGen,label,horasManuales,observaciones){
+function computeSummary(df,otGen,label){
   const TECNICOS_VALIDOS = ['Santiago Munhoz','Ariel Sandoval','Cerrajeria Aleluya','Mauricio Gonzales','Gonzalo Rodriguez','Mauricio Gonzalez'];
   const total=df.length;
   const conTec=df.filter(r=>r['Tecnico']&&String(r['Tecnico']).trim()!=='');
@@ -1000,16 +927,14 @@ function computeSummary(df,otGen,label,horasManuales,observaciones){
     if(!tecStats[t])tecStats[t]={dias:new Set(),g_tec:0,g_cerr:0};
     if(!tecSrvMap[t])tecSrvMap[t]={};
     const srv=String(r['Servicio']||'').toLowerCase();
-    // Detección de guardias — cubre nuevas grafías ("9. Guardia Tecnica", "92. Guardia cerrajeri")
-    // y viejas ("91. GUARDIA TECNICA", "92. GUARDIA CERRAJERIA"). Substring corto: 'guardia tec' / 'guardia cerrajer'.
-    const esGuardia = srv.includes('guardia tec')||srv.includes('guardia cerrajer');
+    const esGuardia = srv.includes('guardia tecnica')||srv.includes('guardia cerrajeria');
     const fecha=r['Fecha de finalizacion'];
     if(fecha && !esGuardia){
       const d=fecha instanceof Date?fecha:new Date(fecha);
       if(!isNaN(d)&&d.getDay()!==0&&d.getDay()!==6) tecStats[t].dias.add(d.toDateString());
     }
-    if(srv.includes('guardia tec'))tecStats[t].g_tec++;
-    if(srv.includes('guardia cerrajer'))tecStats[t].g_cerr++;
+    if(srv.includes('guardia tecnica'))tecStats[t].g_tec++;
+    if(srv.includes('guardia cerrajeria'))tecStats[t].g_cerr++;
     const sk=String(r['Servicio']||'').trim();
     if(sk)tecSrvMap[t][sk]=(tecSrvMap[t][sk]||0)+1;
   });
@@ -1018,54 +943,15 @@ function computeSummary(df,otGen,label,horasManuales,observaciones){
     .sort((a,b)=>b[1]-a[1]).map(([t,n])=>{
       const st=tecStats[t]||{dias:new Set(),g_tec:0,g_cerr:0};
       const dias=st.dias.size||1;
-      const tLow=t.toLowerCase();
-      // ¿Es Cerrajería Aleluya? → sin puntaje ni efectividad, sólo conteo de OTs
-      const esAleluya = tLow.includes('aleluya') || tLow.includes('cerrajeria');
-      // ¿Es uno de los 4 técnicos con horas manuales? (también recupera su observación)
-      let horas = null;
-      let observacion = '';
-      let isInHorasList = false;  // técnico configurado para usar horas manuales
-      if(horasManuales || observaciones){
-        for(const tec of TECNICOS_HORAS_MANUAL){
-          if(tec.match.some(m=>tLow.includes(m))){
-            isInHorasList = true;
-            if(horasManuales){
-              const h=horasManuales[tec.key];
-              if(h!=null && !isNaN(h) && Number(h)>0) horas=Number(h);
-            }
-            if(observaciones){
-              observacion = String(observaciones[tec.key]||'').trim();
-            }
-            break;
-          }
-        }
-      }
-      let puntaje=null, efect=null;
-      if(esAleluya){
-        // Aleluya: sólo OTs, sin puntaje ni efectividad
-        puntaje=null; efect=null;
-      } else if(isInHorasList && horas==null){
-        // Técnico DEL grupo de horas manuales pero no se cargaron horas → mostrar "—"
-        // (sin fallback a días — el usuario decide volver a subir el Excel con horas)
-        puntaje=null; efect=null;
-      } else if(horas!=null){
-        // Técnico con horas manuales: efectividad = puntaje / horas × 100 (cap al 100%)
-        puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
-        efect=parseFloat(Math.min(100,(puntaje/horas)*100).toFixed(1));
-      } else {
-        // Fallback (técnico que NO está en la lista de horas manuales): cálculo viejo por días
-        puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
-        efect=parseFloat(Math.min(100,(puntaje/(9*dias))*100).toFixed(1));
-      }
-      return{nombre:t,ots:n,dias,horas,observacion,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
+      const puntaje=parseFloat(calcPuntaje(tecSrvMap[t]||{}).toFixed(2));
+      const efect=parseFloat(((puntaje/(9*dias))*100).toFixed(1));
+      return{nombre:t,ots:n,dias,g_tec:st.g_tec,g_cerr:st.g_cerr,puntaje,efect,srvMap:tecSrvMap[t]};
     });
   const srvMap={};
   df.forEach(r=>{const s=r['Servicio'];if(s){const k=String(s).trim();srvMap[k]=(srvMap[k]||0)+1;}});
   const topServicios=Object.entries(srvMap).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([s,n])=>({s,n}));
-  // OTs por día de la semana — usa la fecha de finalización (cuándo se cerró la OT),
-  // no la de creación (cuándo entró al sistema).
   const dayMap={};
-  df.forEach(r=>{const d=parseDate(r['Fecha de finalizacion']);if(d){const dow=d.getDay();dayMap[dow]=(dayMap[dow]||0)+1;}});
+  df.forEach(r=>{const d=parseDate(r['Fecha de Creación']);if(d){const dow=d.getDay();dayMap[dow]=(dayMap[dow]||0)+1;}});
   // ── TIEMPO DE RESPUESTA EXPRESS ──
   const SRV_EXPRESS_RESP = ['EXPRESS - 5.FALLA AUTOACTIVACI','EXPRESS - 2. FALTA DE TEST','EXPRESS - 4.FALLA DVR/NVR'];
   function horasHabiles(inicio, fin){
@@ -1119,38 +1005,20 @@ function buildDashboard(w){
   });
 
   let rowId=0;
-  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Tiempo</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
+  let tHTML='<thead><tr><th>Técnico</th><th>Total OTs</th><th>OTs Jornada</th><th>Días hábiles</th><th>OTs/día</th><th>G. Técnica</th><th>G. Cerrajería</th><th>Detalle por servicio</th><th>Puntaje</th><th>% Efectividad</th></tr></thead><tbody>';
   w.tecnicos.forEach(t=>{
     const jornada=t.ots-t.g_tec-t.g_cerr;
-    const isExcl = t.nombre==='Asignacion Interna' || t.puntaje==null || t.efect==null;
-    // Tiempo: horas si existen (semanas nuevas), días si no (semanas históricas), '—' para Aleluya/excluidos
-    const tienenHoras = t.horas!=null && !isNaN(t.horas) && Number(t.horas)>0;
-    const tiempoTxt = isExcl ? '—' : (tienenHoras ? `${t.horas} hs` : `${t.dias} d`);
+    const ppd=(jornada/t.dias).toFixed(1);
     const gtec=t.g_tec>0?`<span class="badge">${t.g_tec}</span>`:'—';
     const gcerr=t.g_cerr>0?`<span class="badge">${t.g_cerr}</span>`:'—';
     const srvs=Object.entries(t.srvMap||{}).sort((a,b)=>b[1]-a[1]);
     const id=`srv-detail-${rowId++}`;
     const detalle=srvs.map(([s,c])=>{const cf=getCoef(s);const pts=cf!==null?(cf*c).toFixed(2):'—';return`<div class="srv-item"><span class="srv-name">${s}</span><span class="badge">${c}</span><span class="srv-pts">${pts}</span></div>`;}).join('');
     const btn=`<div class="srv-detail-wrap"><button class="btn-desplegable" onclick="toggleDetail('${id}')">Ver ${srvs.length} servicios ▾</button><div class="srv-detail" id="${id}">${detalle}</div></div>`;
-    const puntajeCell = isExcl ? '—' : '<strong>'+t.puntaje.toFixed(2)+'</strong>';
-    // % Efectividad: con color por umbral (verde ≥90, azul 70-90, rojo <70) y botón obs si hay observación
-    let efectCell;
-    if(isExcl){
-      efectCell = '—';
-    } else {
-      const ef = Math.min(100, t.efect);
-      const color = ef>=90 ? '#1a7a56' : ef>=70 ? '#1565a8' : '#c0392b';
-      const obsTxt = (t.observacion||'').trim();
-      let obsBtn = '';
-      if(obsTxt){
-        const oid = `obs-detail-${rowId}`;
-        obsBtn = `<span class="srv-detail-wrap" style="margin-left:6px;"><button class="btn-desplegable" style="padding:2px 6px;font-size:11px;" title="Ver observación" onclick="toggleObs('${oid}')">📝 ▾</button><div class="srv-detail" id="${oid}" style="min-width:220px;text-align:left;font-style:italic;font-size:12px;">${escHTML(obsTxt)}</div></span>`;
-      }
-      efectCell = `<span style="display:inline-flex;align-items:center;"><strong style="color:${color};">${ef.toFixed(1)}%</strong>${obsBtn}</span>`;
-    }
-    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${tiempoTxt}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${puntajeCell}</td><td>${efectCell}</td></tr>`;
+    const isExcl=t.nombre==='Asignacion Interna';
+    tHTML+=`<tr><td>${t.nombre}</td><td>${t.ots}</td><td><strong>${jornada}</strong></td><td>${t.dias}</td><td>${ppd}</td><td>${gtec}</td><td>${gcerr}</td><td>${btn}</td><td>${isExcl?'—':'<strong>'+t.puntaje.toFixed(2)+'</strong>'}</td><td>${isExcl?'—':'<strong>'+t.efect.toFixed(1)+'%</strong>'}</td></tr>`;
   });
-  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+  tHTML+=`<tr><td class="of-tec">Oficina Técnica</td><td>${w.sinTec}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
   document.getElementById('tablaTecnicos').innerHTML=tHTML+'</tbody>';
 
   destroyChart('servicios');
@@ -1213,7 +1081,7 @@ function buildDashboard(w){
   document.getElementById('btnDownload').onclick=()=>{
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['KPI','Valor'],['Total OTs',w.totalOTs],['% Finalizadas',w.pct],['Cerradas Of. Técnica',w.sinTec]]),'KPIs');
-    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Técnico','OTs','Puntaje','% Efect.'],...w.tecnicos.map(t=>[t.nombre,t.ots,t.puntaje??'—',t.efect!=null?Math.min(100,t.efect)+'%':'—'])]),'Técnicos');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Técnico','OTs','Puntaje','% Efect.'],...w.tecnicos.map(t=>[t.nombre,t.ots,t.puntaje,t.efect+'%'])]),'Técnicos');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Servicio','Cant.'],...w.topServicios.map(s=>[s.s,s.n])]),'Servicios');
     XLSX.writeFile(wb,`Dashboard_ST_${w.label.replace(/[\s\/]+/g,'_')}.xlsx`);
   };
@@ -1326,7 +1194,7 @@ function renderEvolucion(){
   charts['evolEfect']=new Chart(document.getElementById('chartEvolEfect'),{
     type:'line',
     data:{labels,datasets:tecNames.map(t=>({
-      label:t,data:weeks.map(w=>{const f=w.tecnicos.find(x=>x.nombre===t);return f && f.efect!=null ? Math.min(100,f.efect) : null;}),
+      label:t,data:weeks.map(w=>{const f=w.tecnicos.find(x=>x.nombre===t);return f?f.efect:null;}),
       borderColor:getTecColor(t),backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
     }))},
     options:{responsive:true,maintainAspectRatio:false,
@@ -1364,7 +1232,7 @@ function renderEvolucion(){
         html+=`<tr style="${bg}">
           <td style="padding-left:20px;">↳ ${w.label}</td>
           <td>${w.totalOTs}</td><td>${w.pct}</td>
-          ${tecNames.map(t=>{const f=w.tecnicos.find(x=>x.nombre===t);return`<td>${f && f.efect!=null ? Math.min(100,f.efect).toFixed(1)+'%' : '—'}</td>`;}).join('')}
+          ${tecNames.map(t=>{const f=w.tecnicos.find(x=>x.nombre===t);return`<td>${f?f.efect.toFixed(1)+'%':'—'}</td>`;}).join('')}
           <td>${w.sinTec}</td>
         </tr>`;
       });
@@ -1375,7 +1243,7 @@ function renderEvolucion(){
     weeks.forEach((w,i)=>{
       const bg=i%2===0?'':'background:var(--surface)';
       html+=`<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.totalOTs}</td><td>${w.pct}</td>`;
-      tecNames.forEach(t=>{const f=w.tecnicos.find(x=>x.nombre===t);html+=`<td>${f && f.efect!=null ? Math.min(100,f.efect).toFixed(1)+'%' : '—'}</td>`;});
+      tecNames.forEach(t=>{const f=w.tecnicos.find(x=>x.nombre===t);html+=`<td>${f?f.efect.toFixed(1)+'%':'—'}</td>`;});
       html+=`<td>${w.sinTec}</td></tr>`;
     });
   }
@@ -1736,7 +1604,7 @@ const TECNICOS_CONFIG = [
   { nombre: 'Ariel Sandoval',    areas: ['st'],        color: '#e8a04a' },
   { nombre: 'Mauricio Gonzales', areas: ['st','fidel'],color: '#1a7a56' },
   { nombre: 'Gonzalo Rodriguez', areas: ['st'],        color: '#5340b8' },
-  { nombre: 'Marcos Martin',     areas: ['instalacion'],color: '#c0392b' },
+  { nombre: 'Marcos Martin',     areas: ['st'],        color: '#c0392b' },
   { nombre: 'Lucas Espinosa',    areas: ['instalacion'],color:'#0f2540' },
   { nombre: 'Ezequiel Wagner',   areas: ['instalacion'],color:'#7b5ea7' },
   { nombre: 'Cristian Biglia',   areas: ['instalacion'],color:'#3d7a8a' },
@@ -1778,7 +1646,7 @@ function renderResumen(){
   const sortedLabels = allLabels.sort((a,b)=>extractStartDate(a)-extractStartDate(b));
 
   // Columnas ST (incluye Mauricio)
-  const stCols = ['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Gonzalo Rodriguez'];
+  const stCols = ['Santiago Munhoz','Ariel Sandoval','Mauricio Gonzales','Gonzalo Rodriguez','Marcos Martin'];
   // Columnas Fidelizacion (incluye Mauricio)
   const fidelCols = ['Mauricio Gonzales'];
   // Columnas Instalacion — real data now
@@ -1787,7 +1655,7 @@ function renderResumen(){
   function efCell(ef, pending){
     if(pending) return `<td style="text-align:center;color:var(--text-muted);font-size:11px;font-style:italic;">—</td>`;
     if(ef==null) return `<td style="text-align:center;color:var(--text-muted);">—</td>`;
-    const c=ef>=90?'#1a7a56':ef>=70?'#1565a8':'#c0392b';
+    const c=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
     return `<td style="text-align:center;font-weight:600;color:${c};">${ef}%</td>`;
   }
 
@@ -1802,7 +1670,7 @@ function renderResumen(){
 
   function getTecEf(stW, nombre){
     const tec = stW?.tecnicos?.find(x=>x.nombre.toLowerCase().includes(nombre.toLowerCase().split(' ')[0]));
-    return tec && tec.efect!=null ? Math.min(100, tec.efect) : null;
+    return tec ? tec.efect : null;
   }
 
   // ── ENCABEZADO con separacion visual ST | Fidel | Instalac ──
@@ -1876,7 +1744,7 @@ function renderResumen(){
   document.getElementById('resumenTabla').innerHTML=html+'</tbody>';
 
   // ── GRÁFICO ST con checkboxes ──
-  const stColores={'Santiago Munhoz':'#2e6da4','Ariel Sandoval':'#e8a04a','Mauricio Gonzales':'#1a7a56','Gonzalo Rodriguez':'#5340b8'};
+  const stColores={'Santiago Munhoz':'#2e6da4','Ariel Sandoval':'#e8a04a','Mauricio Gonzales':'#1a7a56','Gonzalo Rodriguez':'#5340b8','Marcos Martin':'#c0392b'};
 
   // Render checkboxes
   const filtrosEl = document.getElementById('stTecFiltros');
@@ -1946,7 +1814,7 @@ function renderResumen(){
       type:'line',
       data:{labels:instWeeks.map(w=>w.label), datasets:instTecNames.map((t,i)=>({
         label:t,
-        data:instWeeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec && tec.efect!=null ? Math.min(100, tec.efect) : null;}),
+        data:instWeeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec?tec.efect:null;}),
         borderColor:instColors[i%instColors.length],backgroundColor:'transparent',
         tension:.3,pointRadius:4,spanGaps:true
       }))},
@@ -2038,88 +1906,13 @@ function renderKpis(){
     resumenEl.innerHTML = html || '<p style="color:var(--text-muted);font-size:13px;">Sin datos en el período seleccionado</p>';
   }
 
-  // ── GRÁFICO OTs GENERADAS vs REALIZADAS (MENSUAL) ──
-  // Agrupa por MES derivado del label de cada semana (ej: "Semana 1 · 02/03 al 08/03" → Marzo).
-  // NO usa el campo `mes` que se carga manualmente, para evitar diferencias por tipeo
-  // ("Febrero" vs "febrero" vs "Febrero 2026"). Es 100% determinístico.
-  // Las semanas que cruzan meses (ej: 23/02 al 01/03) se asignan al mes de la fecha de INICIO.
-  // Ignora el filtro de mes — siempre muestra TODOS los meses para ver la tendencia.
-  const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const byMonth = {};
-  (_kpisWeeks || []).forEach(w => {
-    const startDate = extractStartDate(w.label || '');
-    if(!startDate || isNaN(startDate.getTime())) return;
-    const monthKey = `${MESES_ES[startDate.getMonth()]} ${startDate.getFullYear()}`;
-    if(!byMonth[monthKey]) byMonth[monthKey] = { otGen: 0, totalOTs: 0, sortDate: startDate };
-    byMonth[monthKey].otGen    += Number(w.otGen)    || 0;
-    byMonth[monthKey].totalOTs += Number(w.totalOTs) || 0;
-  });
-  const monthLabels = Object.keys(byMonth).sort((a,b) => byMonth[a].sortDate - byMonth[b].sortDate);
-  destroyChart('kpisOts');
-  charts['kpisOts'] = new Chart(document.getElementById('kpisChartOts'),{
-    type:'line',
-    data:{
-      labels: monthLabels,
-      datasets:[
-        {
-          label:'Generadas',
-          data: monthLabels.map(m => byMonth[m].otGen),
-          borderColor:'#e8a04a',
-          backgroundColor:'rgba(232,160,74,.12)',
-          pointBackgroundColor:'#e8a04a',
-          pointRadius:5,
-          tension:.3,
-          spanGaps:true,
-          fill:false
-        },
-        {
-          label:'Realizadas',
-          data: monthLabels.map(m => byMonth[m].totalOTs),
-          borderColor:'#1565a8',
-          backgroundColor:'rgba(21,101,168,.12)',
-          pointBackgroundColor:'#1565a8',
-          pointRadius:5,
-          tension:.3,
-          spanGaps:true,
-          fill:false
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{
-        legend:{position:'bottom',labels:{font:{family:"'DM Sans',sans-serif",size:12}}},
-        tooltip:{
-          callbacks:{
-            label: ctx => ctx.parsed.y==null ? `${ctx.dataset.label}: —` : `${ctx.dataset.label}: ${ctx.parsed.y} OTs`
-          }
-        }
-      },
-      scales:{
-        x:{grid:{display:false}},
-        y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{precision:0}}
-      }
-    }
-  });
-
   // ── GRÁFICO EVOLUCIÓN ──
-  // Filtrar semanas que tengan al menos un dato en cualquier servicio (no mostrar huecos)
-  const weeksChart = weeks.filter(w => {
-    if(!w.tiempoRespuesta) return false;
-    return SRV_EXPRESS_KPI.some(srv => {
-      const t = w.tiempoRespuesta.find(r => r.srv === srv);
-      return t && t.total > 0;
-    });
-  });
-  const labelsChart = weeksChart.map(w => w.label);
   destroyChart('kpisEvol');
   charts['kpisEvol'] = new Chart(document.getElementById('kpisChartEvol'),{
     type:'line',
-    data:{labels: labelsChart, datasets: SRV_EXPRESS_KPI.map(srv=>({
+    data:{labels, datasets: SRV_EXPRESS_KPI.map(srv=>({
       label: SRV_SHORT_KPI[srv],
-      data: weeksChart.map(w=>{
+      data: weeks.map(w=>{
         if(!w.tiempoRespuesta) return null;
         const t=w.tiempoRespuesta.find(r=>r.srv===srv);
         return t&&t.total?Math.round((t.ok/t.total)*100):null;
@@ -2486,6 +2279,45 @@ function vehCelda(val){
 }
 
 
+// ── LOG ACCESOS VIEWER ──
+let _logAccesos = [];
+async function verLogAccesos(){
+  const modal = document.getElementById('modalAccesos');
+  modal.style.display = 'flex';
+  const list = document.getElementById('logAccesosList');
+  list.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Cargando...</p>';
+  try{
+    const snap = await db.collection('log_accesos').orderBy('timestamp','desc').limit(100).get();
+    _logAccesos = snap.docs.map(d=>d.data());
+    filtrarLog('todos');
+  }catch(e){
+    list.innerHTML = `<p style="color:var(--red);font-size:13px;">Error: ${e.message}</p>`;
+  }
+}
+
+function filtrarLog(tipo){
+  // Update tab styles
+  ['todos','exitoso','rechazado'].forEach(t=>{
+    const btn = document.getElementById(`logTab${t.charAt(0).toUpperCase()+t.slice(1)}`);
+    if(btn){ btn.style.background=t===tipo?'var(--navy)':'var(--white)'; btn.style.color=t===tipo?'white':'var(--text)'; }
+  });
+  const filtered = tipo==='todos' ? _logAccesos : _logAccesos.filter(l=>l.tipo===tipo);
+  const list = document.getElementById('logAccesosList');
+  if(!filtered.length){ list.innerHTML='<p style="color:var(--text-muted);font-size:13px;">Sin registros.</p>'; return; }
+  list.innerHTML = filtered.map(l=>{
+    const color = l.tipo==='exitoso' ? '#1a7a56' : '#c0392b';
+    const icon = l.tipo==='exitoso' ? '✓' : '✗';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--surface2);">
+      <span style="font-size:14px;font-weight:700;color:${color};min-width:16px;">${icon}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;color:var(--navy);">${l.email||'—'}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${l.fecha||'—'}</div>
+      </div>
+      <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${l.tipo==='exitoso'?'#e6f4ee':'#fde8e6'};color:${color};">${l.tipo==='exitoso'?'Exitoso':'Rechazado'}</span>
+    </div>`;
+  }).join('');
+}
+
 // ── INSTALACIÓN ──
 const INST_TECNICOS = ['Lucas Espinosa','Ezequiel Wagner','Cristian Biglia','Marcos Martin','Gonzalo Rodriguez'];
 let _instPendingFiles = [];
@@ -2547,7 +2379,7 @@ function instHandleFiles(files){
         // Render config row
         const div=document.createElement('div');
         div.className='file-item';
-        div.innerHTML=`<span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${df.length} asistencias)</span></span>
+        div.innerHTML=`<span class="file-item-name">📄 ${file.name} <span style="color:var(--text-muted);font-weight:400;">(${df.length} instalaciones)</span></span>
           <label>Mes/Año&nbsp;</label><input type="text" id="instMes_${i}" placeholder="ej: Abril 2026" />
           <label>&nbsp;Período&nbsp;</label><input type="text" id="instLabel_${i}" placeholder="ej: Semana 1 · 06/04" placeholder="ej: Semana 1 · 06/04" />`;
         document.getElementById('instConfigRows').appendChild(div);
@@ -2595,61 +2427,30 @@ async function instGuardar(){
   }
 }
 
-// Separa el campo TÉCNICO cuando hay más de uno (formato Excel: "MARIO y JUAN")
-// Devuelve siempre un array (de 1 elemento si trabajó solo).
-function instSplitTecnicos(rawTec){
-  if(!rawTec) return [];
-  return String(rawTec)
-    .split(/\s+y\s+/i)
-    .map(t=>t.trim())
-    .filter(t=>t.length>0);
-}
-
-// Técnicos que NO deben aparecer en la pantalla Evolución de Instalación.
-// Son personas de ST que ocasionalmente trabajan en instalaciones por trabajo
-// en equipo, pero el módulo Instalación no debe atribuirles métricas de evolución.
-// El matching es por primer y apellido, case-insensitive, y cubre variantes de grafía.
-function instIsTecOculto(nombre){
-  const n = String(nombre||'').toLowerCase().trim();
-  return (n.includes('ariel')    && n.includes('sandoval'))
-      || (n.includes('mauricio') && (n.includes('gonzalez')||n.includes('gonzales')))
-      || (n.includes('santiago') && n.includes('munhoz'))
-      || ((n.includes('ricardo')||n.includes('ricado')) && n.includes('prieto'));
-}
-
 function instComputeSummary(df,label){
-  // Calcular por técnico, contemplando trabajos en equipo
+  // Calcular por técnico
   const tecMap={};
-  // Totales de la semana: se calculan directo del df para NO doble-contar las órdenes en equipo
-  let totalCalcWeek=0, totalRealWeek=0;
   df.forEach(r=>{
     const rawTec=String(r['TÉCNICO']||r['TECNICO']||'').trim();
     if(!rawTec) return;
-    const tiempoCalcRow=parseFloat(r['TIEMPO CALCULADO ']||r['TIEMPO CALCULADO']||0)||0;
-    const tiempoRealRow=parseFloat(r['TIEMPO REAL']||0)||0;
-    totalCalcWeek+=tiempoCalcRow;
-    totalRealWeek+=tiempoRealRow;
-    // Partir por " y " para detectar equipos. Cada técnico se lleva la orden COMPLETA.
-    instSplitTecnicos(rawTec).forEach(rawTec2=>{
-      // Normalize: capitalize first letter of each word
-      const tec=rawTec2.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
-      if(!tecMap[tec]) tecMap[tec]={instalaciones:0,tiempoCalc:0,tiempoReal:0,items:[]};
-      tecMap[tec].instalaciones++;
-      tecMap[tec].tiempoCalc+=tiempoCalcRow;
-      tecMap[tec].tiempoReal+=tiempoRealRow;
-      tecMap[tec].items.push(r);
-    });
+    // Normalize: capitalize first letter of each word
+    const tec=rawTec.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+    if(!tecMap[tec]) tecMap[tec]={instalaciones:0,tiempoCalc:0,tiempoReal:0,items:[]};
+    tecMap[tec].instalaciones++;
+    tecMap[tec].tiempoCalc+=parseFloat(r['TIEMPO CALCULADO ']||r['TIEMPO CALCULADO']||0)||0;
+    tecMap[tec].tiempoReal+=parseFloat(r['TIEMPO REAL']||0)||0;
+    tecMap[tec].items.push(r);
   });
   const tecnicos=Object.entries(tecMap).map(([nombre,d])=>{
-    // Cap al 100%: si terminó más rápido que el tiempo calculado, se topea
-    const efect=d.tiempoReal>0?parseFloat(Math.min(100,(d.tiempoCalc/d.tiempoReal)*100).toFixed(1)):100;
+    const efect=d.tiempoReal>0?parseFloat(((d.tiempoCalc/d.tiempoReal)*100).toFixed(1)):100;
     const diferencia=parseFloat((d.tiempoCalc-d.tiempoReal).toFixed(1));
     return{nombre,instalaciones:d.instalaciones,tiempoCalc:d.tiempoCalc,tiempoReal:d.tiempoReal,diferencia,efect};
   });
-  // Totales semanales calculados directo del df (sin doble-contar equipos)
-  const totalEfect=totalRealWeek>0?parseFloat(Math.min(100,(totalCalcWeek/totalRealWeek)*100).toFixed(1)):100;
+  const totalCalc=tecnicos.reduce((s,t)=>s+t.tiempoCalc,0);
+  const totalReal=tecnicos.reduce((s,t)=>s+t.tiempoReal,0);
+  const totalEfect=totalReal>0?parseFloat(((totalCalc/totalReal)*100).toFixed(1)):100;
   const totalInstalaciones=df.length;
-  return{label,totalInstalaciones,totalCalc:totalCalcWeek,totalReal:totalRealWeek,totalEfect,tecnicos,items:df};
+  return{label,totalInstalaciones,totalCalc,totalReal,totalEfect,tecnicos,items:df};
 }
 
 async function instLoadSaved(){
@@ -2693,7 +2494,7 @@ function instRenderSaved(weeks){
           <div class="saved-week-item" style="margin-bottom:4px;">
             <div style="flex:1">
               <div class="saved-week-label">📄 ${w.label}</div>
-              <div class="saved-week-sub">${w.totalInstalaciones} asistencias · Efect. ${Math.min(100, w.totalEfect||0)}%</div>
+              <div class="saved-week-sub">${w.totalInstalaciones} instalaciones · Efect. ${w.totalEfect}%</div>
             </div>
             <button class="btn-view-week" onclick='instBuildDashboard(${JSON.stringify(w).replace(/'/g,"&#39;")})'>Ver →</button>
             <button class="btn-del-week" onclick='instDelete("${w.id}")'>✕</button>
@@ -2718,20 +2519,19 @@ function instBuildDashboard(w){
   document.getElementById('instTopPeriod').textContent=w.label;
 
   // KPIs
-  const totalEfectCap = Math.min(100, w.totalEfect||0);
-  const efColor=totalEfectCap>=100?'green':totalEfectCap>=80?'teal':'purple';
+  const efColor=w.totalEfect>=100?'green':w.totalEfect>=80?'teal':'purple';
   document.getElementById('instKpiGrid').innerHTML=[
-    {cls:'navy',label:'Total asistencias',value:w.totalInstalaciones,sub:'en la semana'},
-    {cls:efColor,label:'% Efectividad',value:totalEfectCap+'%',sub:'tiempo calculado / tiempo real'},
+    {cls:'navy',label:'Total instalaciones',value:w.totalInstalaciones,sub:'en la semana'},
+    {cls:efColor,label:'% Efectividad',value:w.totalEfect+'%',sub:'tiempo calculado / tiempo real'},
     {cls:'teal',label:'Tiempo calculado',value:w.totalCalc+'hs',sub:'horas estimadas'},
     {cls:'navy',label:'Tiempo real',value:w.totalReal+'hs',sub:'horas ejecutadas'},
   ].map(k=>`<div class="kpi-card ${k.cls}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
 
   // Tabla técnicos
-  let tHTML='<thead><tr><th>Técnico</th><th>Asistencias</th><th>Tiempo calc.</th><th>Tiempo real</th><th>Diferencia</th><th>% Efectividad</th></tr></thead><tbody>';
+  let tHTML='<thead><tr><th>Técnico</th><th>Instalaciones</th><th>Tiempo calc.</th><th>Tiempo real</th><th>Diferencia</th><th>% Efectividad</th></tr></thead><tbody>';
   (w.tecnicos||[]).forEach((t,i)=>{
     const bg=i%2===0?'':'background:var(--surface)';
-    const ef=Math.min(100, t.efect||0);
+    const ef=t.efect;
     const efC=ef>=100?'#1a7a56':ef>=80?'#1565a8':'#c0392b';
     const difC=t.diferencia>=0?'#1a7a56':'#c0392b';
     tHTML+=`<tr style="${bg}"><td><strong>${t.nombre}</strong></td><td>${t.instalaciones}</td><td>${t.tiempoCalc}hs</td><td>${t.tiempoReal}hs</td><td style="color:${difC};font-weight:600;">${t.diferencia>=0?'+':''}${t.diferencia}hs</td><td style="color:${efC};font-weight:600;">${ef}%</td></tr>`;
@@ -2794,8 +2594,7 @@ function instRenderEvolucion(){
   if(!weeks.length) return;
   document.getElementById('instEvolBadge').textContent=_instMesActivo==='todos'?'Todas las semanas':_instMesActivo;
   const labels=weeks.map(w=>w.label);
-  const tecNames=[...new Set(weeks.flatMap(w=>(w.tecnicos||[]).map(t=>t.nombre)))]
-    .filter(n=>!instIsTecOculto(n));
+  const tecNames=[...new Set(weeks.flatMap(w=>(w.tecnicos||[]).map(t=>t.nombre)))];
   const colors=['#2e6da4','#e8a04a','#c0392b','#1a7a56','#5340b8'];
 
   destroyChart('instEvol');
@@ -2803,12 +2602,12 @@ function instRenderEvolucion(){
     type:'line',
     data:{labels, datasets:tecNames.map((t,i)=>({
       label:t,
-      data:weeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec && tec.efect!=null ? Math.min(100, tec.efect) : null;}),
+      data:weeks.map(w=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);return tec?tec.efect:null;}),
       borderColor:colors[i%colors.length],backgroundColor:'transparent',tension:.3,pointRadius:4,spanGaps:true
     }))},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
-      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}
+      scales:{x:{grid:{display:false}},y:{grid:{color:'#eef1f6'},beginAtZero:true,ticks:{callback:v=>v+'%'}}}}
   });
 
   // Tabla evolución
@@ -2817,29 +2616,27 @@ function instRenderEvolucion(){
     const byMes={};
     weeks.forEach(w=>{const m=w.mes||'Sin clasificar';if(!byMes[m])byMes[m]=[];byMes[m].push(w);});
     const mesesSorted=Object.keys(byMes).sort((a,b)=>extractStartDate(byMes[a][0].label)-extractStartDate(byMes[b][0].label));
-    html=`<thead><tr><th>Mes / Semana</th><th>Asistencias</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
+    html=`<thead><tr><th>Mes / Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
     mesesSorted.forEach(mes=>{
       const mW=sortWeeks(byMes[mes]);
       const totInst=mW.reduce((s,w)=>s+w.totalInstalaciones,0);
       html+=`<tr style="background:#1a3a5c !important;"><td colspan="${5+tecNames.length}" style="color:white;font-weight:600;background:#1a3a5c;">📁 ${mes}</td></tr>`;
       mW.forEach((w,i)=>{
         const bg=i%2===0?'':'background:var(--surface)';
-        const efTot=Math.min(100, w.totalEfect||0);
-        const efC=efTot>=100?'#1a7a56':efTot>=80?'#1565a8':'#c0392b';
+        const efC=w.totalEfect>=100?'#1a7a56':w.totalEfect>=80?'#1565a8':'#c0392b';
         html+=`<tr style="${bg}"><td style="padding-left:20px;">↳ ${w.label}</td><td>${w.totalInstalaciones}</td><td>${w.totalCalc}hs</td><td>${w.totalReal}hs</td>`;
-        tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);if(!tec){html+=`<td style="text-align:center;">—</td>`;return;}const efT=Math.min(100, tec.efect||0);html+=`<td style="text-align:center;"><span style="color:${efT>=100?'#1a7a56':efT>=80?'#1565a8':'#c0392b'};font-weight:600;">${efT}%</span></td>`;});
-        html+=`<td style="color:${efC};font-weight:600;text-align:center;">${efTot}%</td></tr>`;
+        tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);html+=`<td style="text-align:center;">${tec?`<span style="color:${tec.efect>=100?'#1a7a56':tec.efect>=80?'#1565a8':'#c0392b'};font-weight:600;">${tec.efect}%</span>`:'—'}</td>`;});
+        html+=`<td style="color:${efC};font-weight:600;text-align:center;">${w.totalEfect}%</td></tr>`;
       });
     });
   } else {
-    html=`<thead><tr><th>Semana</th><th>Asistencias</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
+    html=`<thead><tr><th>Semana</th><th>Instalaciones</th><th>T.Calc.</th><th>T.Real</th>${tecNames.map(t=>`<th style="color:white;font-size:10px;">${t}</th>`).join('')}<th style="color:white;">Efect. Total</th></tr></thead><tbody>`;
     weeks.forEach((w,i)=>{
       const bg=i%2===0?'':'background:var(--surface)';
-      const efTot=Math.min(100, w.totalEfect||0);
-      const efC=efTot>=100?'#1a7a56':efTot>=80?'#1565a8':'#c0392b';
+      const efC=w.totalEfect>=100?'#1a7a56':w.totalEfect>=80?'#1565a8':'#c0392b';
       html+=`<tr style="${bg}"><td><strong>${w.label}</strong></td><td>${w.totalInstalaciones}</td><td>${w.totalCalc}hs</td><td>${w.totalReal}hs</td>`;
-      tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);if(!tec){html+=`<td style="text-align:center;">—</td>`;return;}const efT=Math.min(100, tec.efect||0);html+=`<td style="text-align:center;"><span style="color:${efT>=100?'#1a7a56':efT>=80?'#1565a8':'#c0392b'};font-weight:600;">${efT}%</span></td>`;});
-      html+=`<td style="color:${efC};font-weight:600;text-align:center;">${efTot}%</td></tr>`;
+      tecNames.forEach(t=>{const tec=(w.tecnicos||[]).find(x=>x.nombre===t);html+=`<td style="text-align:center;">${tec?`<span style="color:${tec.efect>=100?'#1a7a56':tec.efect>=80?'#1565a8':'#c0392b'};font-weight:600;">${tec.efect}%</span>`:'—'}</td>`;});
+      html+=`<td style="color:${efC};font-weight:600;text-align:center;">${w.totalEfect}%</td></tr>`;
     });
   }
   document.getElementById('instTablaEvol').innerHTML=html+'</tbody>';
@@ -3007,232 +2804,9 @@ async function vehEstadoSave(){
   }
 }
 
-// ── INCREMENTO DE FACTURACIÓN POR HABILITACIONES ──
-const HAB_COLS = ['CONDICION','MES','ABONO','BONIFICACION','INYECTADO EN EL FLUJO'];
-const HAB_MES_ORDER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-const HAB_DEFAULT = [
-  ['ACTUAL',      'ENERO',   '$ 1.245.255,34', '$ -',          '$ 1.245.255,34'],
-  ['PROYECTADO',  'FEBRERO', '$ 604.319,06',   '$ -',          '$ 604.319,06'  ],
-  ['ACTUAL',      'FEBRERO', '$ 1.402.197,61', '$ 28.873,66',  '$ 1.373.323,95'],
-  ['PROYECTADO',  'MARZO',   '$ 854.865,43',   '$ 67.532,43',  '$ 787.333,00'  ],
-  ['ACTUAL',      'MARZO',   '$ 271.975,31',   '$ 41.600,57',  '$ 230.374,74'  ],
-  ['PROYECTADO',  'ABRIL',   '$ 368.078,75',   '$ 93.271,54',  '$ 274.807,21'  ],
-  ['ACTUAL',      'ABRIL',   '$ 228.407,21',   '$ 93.271,54',  '$ 135.135,67'  ],
-  ['PROYECTADO',  'MAYO',    '$ 861.965,93',   '$ -',          '$ 861.965,93'  ]
-];
-let _habData = null;
-let _habChart = null;
-
-// Convierte "$ 1.245.255,34" → 1245255.34 (formato AR). Devuelve null si no parsea.
-function habParseNum(s){
-  if(s==null) return null;
-  const txt = String(s).replace(/\$/g,'').replace(/\s/g,'').trim();
-  if(txt==='' || txt==='-') return null;
-  // Quita separadores de miles "." y convierte coma decimal a "."
-  const cleaned = txt.replace(/\./g,'').replace(',','.');
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? null : n;
-}
-
-function habFmtMoney(n){
-  return '$ ' + n.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0});
-}
-
-async function habLoad(){
-  if(!window._fb) return;
-  try{
-    const data = await window._fb.getHabilitaciones();
-    if(data && data.rows){
-      _habData = data.rows.map(obj => HAB_COLS.map((_,i)=>obj['c'+i]||'—'));
-    } else {
-      _habData = JSON.parse(JSON.stringify(HAB_DEFAULT));
-    }
-  }catch(e){
-    _habData = JSON.parse(JSON.stringify(HAB_DEFAULT));
-  }
-  habRender();
-  habChartRender();
-}
-
-function habChartRender(){
-  const canvas = document.getElementById('habChart');
-  if(!canvas || !_habData) return;
-  // Agrupar ABONO por mes y condición
-  const byMonth = {};
-  _habData.forEach(row=>{
-    const cond = String(row[0]||'').trim().toUpperCase();
-    const mes  = String(row[1]||'').trim().toUpperCase();
-    const abono = habParseNum(row[2]);
-    if(!HAB_MES_ORDER.includes(mes)) return;
-    if(cond!=='ACTUAL' && cond!=='PROYECTADO') return;
-    if(!byMonth[mes]) byMonth[mes] = {};
-    byMonth[mes][cond] = abono;
-  });
-  // Ordenar los meses presentes según calendario
-  const monthsPresent = HAB_MES_ORDER.filter(m => byMonth[m]);
-  const labels   = monthsPresent.map(m => m.charAt(0) + m.slice(1).toLowerCase());
-  const actuals  = monthsPresent.map(m => byMonth[m].ACTUAL ?? null);
-  const proyects = monthsPresent.map(m => byMonth[m].PROYECTADO ?? null);
-
-  if(_habChart) _habChart.destroy();
-  _habChart = new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Actual',
-          data: actuals,
-          borderColor: '#1565a8',
-          backgroundColor: 'rgba(21,101,168,.12)',
-          pointBackgroundColor: '#1565a8',
-          pointRadius: 4,
-          tension: 0.3,
-          spanGaps: true,
-          fill: false
-        },
-        {
-          label: 'Proyectado',
-          data: proyects,
-          borderColor: '#e8a04a',
-          backgroundColor: 'rgba(232,160,74,.12)',
-          pointBackgroundColor: '#e8a04a',
-          pointRadius: 4,
-          tension: 0.3,
-          spanGaps: true,
-          fill: false,
-          borderDash: [6, 4]
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode:'index', intersect:false },
-      plugins: {
-        legend: { position:'bottom', labels:{ font:{family:"'DM Sans',sans-serif", size:12} } },
-        tooltip: {
-          callbacks: {
-            label: ctx => ctx.parsed.y==null ? `${ctx.dataset.label}: —` : `${ctx.dataset.label}: ${habFmtMoney(ctx.parsed.y)}`
-          }
-        }
-      },
-      scales: {
-        x: { grid:{display:false} },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: v => v>=1000000 ? '$ '+(v/1000000).toFixed(1)+'M' : v>=1000 ? '$ '+(v/1000).toFixed(0)+'k' : '$ '+v
-          }
-        }
-      }
-    }
-  });
-}
-
-function habRender(){
-  const tabla = document.getElementById('habTabla');
-  if(!tabla || !_habData) return;
-  const thStyle = 'padding:8px 12px;background:#0f2540;color:white;font-size:11px;font-weight:600;text-align:left;white-space:nowrap;border:1px solid #1a3a5c;';
-  const tdStyle = (i) => `padding:0;border:1px solid var(--border);background:${i%2===0?'white':'var(--surface)'};`;
-  let html = `<thead><tr>
-    ${HAB_COLS.map(c=>`<th style="${thStyle}">${c}</th>`).join('')}
-    <th style="${thStyle}">Acciones</th>
-  </tr></thead><tbody>`;
-  _habData.forEach((row, ri)=>{
-    const cond = String(row[0]||'').trim().toUpperCase();
-    // Color por CONDICION: ACTUAL azul, PROYECTADO naranja tenue
-    const condColor = cond==='ACTUAL' ? '#1565a8' : cond==='PROYECTADO' ? '#e8a04a' : 'inherit';
-    const condWeight = (cond==='ACTUAL'||cond==='PROYECTADO') ? '700' : '400';
-    html += `<tr>`;
-    HAB_COLS.forEach((col, ci)=>{
-      const val = row[ci]!=null ? String(row[ci]) : '—';
-      const color = ci===0 ? condColor : 'inherit';
-      const weight = ci===0 ? condWeight : '400';
-      // Columnas de plata alineadas a la derecha
-      const align = (ci>=2) ? 'right' : 'left';
-      html += `<td style="${tdStyle(ri)}">
-        <div contenteditable="true"
-          data-row="${ri}" data-col="${ci}"
-          oninput="habCellEdit(${ri},${ci},this.textContent)"
-          style="padding:7px 10px;min-width:80px;outline:none;color:${color};font-weight:${weight};cursor:text;text-align:${align};"
-          onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-        >${val}</div>
-      </td>`;
-    });
-    html += `<td style="${tdStyle(ri)}padding:4px 8px;text-align:center;white-space:nowrap;">
-      <button onclick="habDelRow(${ri})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px 6px;" title="Eliminar fila">✕</button>
-    </td></tr>`;
-  });
-  html += '</tbody>';
-  tabla.innerHTML = html;
-}
-
-let _habChartDebounce = null;
-function habCellEdit(ri, ci, val){
-  if(!_habData) return;
-  _habData[ri][ci] = val.trim();
-  if(ci===0){
-    const el = document.querySelector(`#habTabla [data-row="${ri}"][data-col="0"]`);
-    if(el){
-      const v = val.trim().toUpperCase();
-      el.style.color = v==='ACTUAL' ? '#1565a8' : v==='PROYECTADO' ? '#e8a04a' : 'inherit';
-      el.style.fontWeight = (v==='ACTUAL'||v==='PROYECTADO') ? '700' : '400';
-    }
-  }
-  // Re-renderizar el gráfico con debounce si lo que cambió afecta al chart
-  // (cols 0=CONDICION, 1=MES o 2=ABONO)
-  if(ci<=2){
-    clearTimeout(_habChartDebounce);
-    _habChartDebounce = setTimeout(habChartRender, 300);
-  }
-}
-
-function habDelRow(ri){
-  if(!_habData) return;
-  if(!confirm('¿Eliminar esta fila?')) return;
-  _habData.splice(ri,1);
-  habRender();
-  habChartRender();
-}
-
-function habAddRow(){
-  if(!_habData) return;
-  _habData.push(['ACTUAL','—','$ 0,00','$ -','$ 0,00']);
-  habRender();
-  habChartRender();
-  setTimeout(()=>{
-    const el = document.querySelector(`#habTabla [data-row="${_habData.length-1}"][data-col="0"]`);
-    if(el){el.focus();const r=document.createRange();r.selectNodeContents(el);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);}
-  },100);
-}
-
-async function habSave(){
-  if(!window._fb){ alert('Firebase no está listo. Intentá de nuevo.'); return; }
-  const btn = document.getElementById('habSaveBtn');
-  const msg = document.getElementById('habSaveMsg');
-  if(btn){ btn.disabled=true; btn.textContent='Guardando...'; }
-  try{
-    const rows = _habData.map(row=>{
-      const obj={};
-      HAB_COLS.forEach((col,i)=>{ obj['c'+i]=row[i]!=null?String(row[i]):''; });
-      return obj;
-    });
-    await window._fb.saveHabilitaciones({rows, updatedAt: Date.now()});
-    if(msg){ msg.style.display='inline'; msg.style.color='var(--green)'; msg.textContent='✓ Guardado correctamente'; setTimeout(()=>msg.style.display='none', 3000); }
-  }catch(e){
-    console.error('save error:', e);
-    if(msg){ msg.style.display='inline'; msg.style.color='var(--red)'; msg.textContent='Error: '+e.message; setTimeout(()=>msg.style.display='none', 4000); }
-  } finally {
-    if(btn){ btn.disabled=false; btn.textContent='💾 Guardar'; }
-  }
-}
-
 document.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('vehEstadoAddRow')?.addEventListener('click', vehEstadoAddRow);
   document.getElementById('vehEstadoSaveBtn')?.addEventListener('click', vehEstadoSave);
-  document.getElementById('habAddRow')?.addEventListener('click', habAddRow);
-  document.getElementById('habSaveBtn')?.addEventListener('click', habSave);
 });
 
 // Auth handles initialization via firebaseReady event
@@ -3395,8 +2969,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   <div class="kpi-grid" id="instKpiGrid"></div>
   <div class="section-label">Detalle por técnico</div>
   <div class="table-card-full"><h3>Resumen por técnico</h3><table class="dt" id="instTablaTecnicos"></table></div>
-  <div class="section-label">Detalle de asistencias</div>
-  <div class="table-card-full" style="overflow-x:auto;"><h3>Asistencias de la semana</h3><table class="dt" id="instTablaDetalle"></table></div>
+  <div class="section-label">Detalle de instalaciones</div>
+  <div class="table-card-full" style="overflow-x:auto;"><h3>Instalaciones de la semana</h3><table class="dt" id="instTablaDetalle"></table></div>
 </div>
 
 <div id="instEvolucionScreen" style="display:none;padding:1.75rem 2rem 3rem;max-width:1100px;margin:0 auto;">
@@ -3421,6 +2995,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
   <div class="table-card-full"><h3>Resumen por semana</h3><table class="dt" id="instTablaEvol"></table></div>
 </div>
 </div><!-- fin instalacionScreen -->
+
+<!-- MODAL LOG ACCESOS -->
+<div id="modalAccesos" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--white);border-radius:16px;padding:1.75rem;max-width:560px;width:90%;max-height:80vh;display:flex;flex-direction:column;gap:1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--navy);margin:0;">🔍 Registro de Accesos</h2>
+      <button onclick="document.getElementById('modalAccesos').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="filtrarLog('todos')" id="logTabTodos" style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;background:var(--navy);color:white;">Todos</button>
+      <button onclick="filtrarLog('exitoso')" id="logTabExitoso" style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;background:var(--white);color:var(--text);">✓ Exitosos</button>
+      <button onclick="filtrarLog('rechazado')" id="logTabRechazado" style="padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;background:var(--white);color:var(--text);">✗ Rechazados</button>
+    </div>
+    <div id="logAccesosList" style="overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
 
 </div><!-- end appContainer -->
 </body>
